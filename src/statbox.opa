@@ -40,14 +40,14 @@ DC = DropboxContext
 
 module DropboxAuth {
 
-    function error(v) { {error: v} }
+    function err(v) { {error: v} }
 
     function login_url() {
 	match (D.OAuth.get_request_token(dropbox_redirect)) {
         case {success: s}:
             DC.set({pending_request: {secret : s.secret, token:s.token}});
 	    {success: D.OAuth.build_authorize_url(s.token, dropbox_redirect) }
-        case {~error}: error("Error getting request token: {error}")
+        case {~error}: err("Error getting request token: {error}")
         }
     }
 
@@ -56,14 +56,14 @@ module DropboxAuth {
     function pass1(raw_token) {
 	match(DC.get()) {
 	case {pending_request: creds}: pass2(creds, raw_token);
-        case  _ : error("The current user did not request a token")
+        case  _ : err("The current user did not request a token")
         }
     }
 
     function pass2(creds, raw_token) {
 	match(D.OAuth.connection_result(raw_token)) {
 	case {success: s}: pass3(creds, s)
-	case {~error}: error("The providing arguments are invalid: {error}")
+	case {~error}: err("The providing arguments are invalid: {error}")
         }
     }
 
@@ -72,17 +72,17 @@ module DropboxAuth {
 	    if (s.verifier == "" && s.secret == "") {
 	        pass4(s.token, creds.secret)
             } else {
-		error("The connection result contains those unexpected values: verifier: '{s.verifier}' and secret: '{s.secret}'")
+		err("The connection result contains those unexpected values: verifier: '{s.verifier}' and secret: '{s.secret}'")
             }
         } else {
-            error("The request token of the current user doesn't match provided arguments.")
+            err("The request token of the current user doesn't match provided arguments.")
         }
     }
 
     function pass4(token, secret) {
 	match (D.OAuth.get_access_token(token, secret, "")) {
         case {success: _}: DC.set({authenticated: {~token, ~secret}}); {success}
-	case {~error}: error("Impossible to retrieve an access token: {error}")
+	case {~error}: err("Impossible to retrieve an access token: {error}")
         }
     }
 }
