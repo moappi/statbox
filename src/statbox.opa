@@ -1,14 +1,13 @@
-//import stdlib.themes.bootstrap
-//import stdlib.widgets.bootstrap
+import stdlib.themes.bootstrap
+import stdlib.widgets.bootstrap
 
 //import stdlib.tools.gcharts
 //import stdlib.apis.mongo
 
-import stdlib.apis.dropbox
+import custom.stdlib.apis.dropbox
 import stdlib.core.rpc.core
 
-
-//WB = WBootstrap
+WB = WBootstrap
 
 host = "takehome2.dropbox.com"
 
@@ -18,6 +17,9 @@ dropbox_config = {
 }
 
 dropbox_redirect = "http://{host}/dropbox/connect"
+
+/* --- */
+/* Credits: the following modules are based on MLstate's code examples by Cédric Soulas and Adam Koprowski */
 
 D = Dropbox(dropbox_config)
 
@@ -110,13 +112,14 @@ function process_dropbox_token(raw_token, url) {
 function main_page() {
     match(DC.get()) {
     case {disconnected}: go_to_dropbox_login_page()
-    case {pending_request: c}: Resource.html("Pending request", <h1>{c}</h1>)
-    case {authenticated: c}: Resource.html("Authenticated", <h1>{c}</h1>)
+    case {pending_request: c}: Resource.html("Pending request", <h1>Pending request tokens:{OpaSerialize.to_string(c)}</h1>)
+    case {authenticated: c}: Resource.html("Authenticated", <h1>Authentication tokens:{OpaSerialize.to_string(c)}</h1>)
     }
 }
 
 dispatcher = parser {
 case "/dropbox/connect?" raw_token=(.*) : process_dropbox_token(Text.to_string(raw_token), "/")
+//case "/favicon.ico": **TODO**
 case "/" : main_page()
 }
 
