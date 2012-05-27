@@ -172,6 +172,7 @@ type Dropbox.file = {
     } : Dropbox.quota_info
 
   build_infos(data) =
+    do Log.info("debug", "Parsing infos: {OpaSerialize.to_string(data)}")
     map = API_libs_private.parse_json(data.content)
       |> JsonOpa.record_fields
       |> Option.default(Map.empty, _)
