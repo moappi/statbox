@@ -83,7 +83,9 @@ module DropboxAuth {
 
     function pass4(token, secret) {
 	match (D.OAuth.get_access_token(token, secret, "")) {
-        case {success: _}: DC.set({authenticated: {~token, ~secret}}); {success}
+        case {success: s}:
+            Log.info("Oauth completed", "{OpaSerialize.to_string(s)}");
+            DC.set({authenticated: {token:s.token, secret:s.secret}}); {success}
 	case {~error}: err("Impossible to retrieve an access token: {error}")
         }
     }
