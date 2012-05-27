@@ -109,11 +109,21 @@ function process_dropbox_token(raw_token, url) {
     }
 }
 
+function main_page_authenticated(creds) {
+    match (D.Account.info(creds)) {
+    case {success:infos}:
+        html = <div>{OpaSerialize.to_string(infos)}</div>;
+        Resource.html("Welcome {infos.display_name}", html)
+    default:
+        error_page("Error while retrieving the account information");
+    }
+}
+
 function main_page() {
     match(DC.get()) {
     case {disconnected}: go_to_dropbox_login_page()
-    case {pending_request: c}: Resource.html("Pending request", <h1>Pending request tokens:{OpaSerialize.to_string(c)}</h1>)
-    case {authenticated: c}: Resource.html("Authenticated", <h1>Authentication tokens:{OpaSerialize.to_string(c)}</h1>)
+    case {pending_request: _}: Resource.html("Pending request", <h1>Pending request</h1>)
+    case {authenticated: creds}: main_page_authenticated(creds)
     }
 }
 
