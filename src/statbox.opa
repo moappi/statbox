@@ -135,11 +135,19 @@ function main_page() {
     }
 }
 
+function user_html(user u) {
+    <div>{OpaSerialize.to_string(u)}</div>
+}
+
+function entry_html(entry e) {
+    <div>{OpaSerialize.to_string(e)}</div>
+}
+
 function admin_page() {
     dbset(user, _) dbusers = /users/all;
     dbset(entry, _) dbentries = /entries/all;
-    users = <>{dbusers}</>;
-    entries = <>{dbentries}</>;
+    users = <>{Iter.to_list(Iter.map(user_html, DbSet.iterator(dbusers)))}</>;
+    entries = <>{Iter.to_list(Iter.map(entry_html, DbSet.iterator(dbentries)))}</>;
     html = <><h1>Users</h1>{users}<h1>Entries</h1>{entries}</>;
     Resource.html("Admin page", html);
 }
