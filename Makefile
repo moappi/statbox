@@ -20,7 +20,8 @@ clean::
 	rm -rf _build _tracks $(LIBS) statbox
 
 clean-all:: clean
-	echo "Press enter to reset the database in $(DBPATH)"; read i; if [ "xx$i" == "xx" ]; then rm -rf $(DBPATH)/*; fi
+	@echo "Press enter to reset the database in $(DBPATH)"; read i; [ "xx$$i" == "xx" ]
+	rm -rf $(DBPATH)/*
 
 ## hackish: use with care
 make deploy::
@@ -29,4 +30,4 @@ make deploy::
 
 make clean-deploy::
 	git push -f origin master:deploy && \
-	ssh "$(USER)@$(HOST)" 'cd git/statbox && make clean-all && git fetch && git checkout deploy && git pull origin deploy && make run'
+	ssh "$(USER)@$(HOST)" 'cd git/statbox && make clean && git fetch && git checkout deploy && make clean-all && git pull origin deploy && make run'
