@@ -1,4 +1,6 @@
 
+/* --- */
+
 type user = {
     int uid,
     Dropbox.info last_info,
@@ -20,4 +22,16 @@ database entries @mongo {
     /all[_]/data/is_deleted = {false}
     /all[_]/data/thumb_exists = {false}
 }
+//TODO: instruct Opa/MongoDB to build (secondary) indexes wrt. uid and path
 
+/* --- */
+
+function update_user_info(Dropbox.info info) { 
+    /users/all[uid == info.uid] = {uid: info.uid, last_info: info, last_cursor: ""};
+}
+
+/*
+function update_user_entries(int uid, ) { 
+    /users/all[uid == info.uid] = {uid: info.uid, last_info: info, last_cursor: ""};
+}
+*/

@@ -120,7 +120,7 @@ function main_page_authenticated(creds) {
     match (D.Account.info(creds)) {
     case {success:info}:
         html = <div>{OpaSerialize.to_string(info)}</div>;
-            /users/all[uid == info.uid] = {uid: info.uid, last_info: info, last_cursor: ""};
+        update_user_info(info);
         Resource.html("Welcome {info.display_name}", html)
     default: // BUG of OPA stdlib: we never catch bugs here
         error_page("Error while retrieving the account information");
