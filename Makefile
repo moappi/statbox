@@ -19,7 +19,7 @@ custom.stdlib.apis.dropbox.opx: $(LIBDIR)/dropbox.opa
 	opa -c --parser classic $^
 
 clean::
-	rm -rf _build _tracks $(LIBS) statbox
+	rm -rf _build _tracks .opx/* $(LIBS) statbox
 
 ## hackish deployment scripts: use with care
 DBPATH=$(HOME)/var/mongodb
@@ -33,7 +33,7 @@ run:: statbox
 	authbind ./statbox -p 80
 
 clean-all:: clean
-	@echo "Press enter to reset the database in $(DBPATH)" && read i && [ "xx$$i" == "xx" ]
+	@echo "Press enter to reset the database in $(DBPATH)" && read i && [ "xx$$i" = "xx" ]
 	rm -rf $(DBPATH)/* access.log error.log
 
 deploy::

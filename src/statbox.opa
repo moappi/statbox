@@ -6,6 +6,7 @@ import stdlib.apis.mongo
 import stdlib.database.mongo
 
 import custom.stdlib.apis.dropbox
+import custom.stdlib.apis.oauth
 import stdlib.core.rpc.core
 
 WB = WBootstrap
@@ -18,7 +19,8 @@ dropbox_config = {
     app_secret: "xhw9qkcqdzzvfuk"
 }
 
-dropbox_redirect = "http://{host}/dropbox/connect"
+// FIXME share url definition with dispatcher below
+dropbox_redirect_url = "http://{host}/dropbox/connect"
 
 /* --- */
 /* Credits: the following modules are based on MLstate's code examples by Cédric Soulas and Adam Koprowski */
@@ -27,12 +29,10 @@ D = Dropbox(dropbox_config)
 
 type dropbox_status = 
    {disconnected}
-or {Dropbox.credentials pending_request}
+or {OAuth.token pending_request}
 or {Dropbox.credentials authenticated}
 
-// Mathieu: FIXME: OAuth should be stored in DB to survive server restart
-// However Opa's OAuth client does not know how about HTTP error codes(!!), so it might be tricky to trigger a reauthentication when the tokens expire
-
+// Mathieu: TODO: save in DB and deal with expiration via error codes
 module DropboxContext {
 
     UserContext.t(dropbox_status) context = UserContext.make({disconnected})
@@ -47,14 +47,14 @@ DC = DropboxContext
 
 module DropboxAuth {
 
-    function err(v) { {error: v} }
+    function mkerror(v) { {error: v} }
 
     function login_url() {
-	match (D.OAuth.get_request_token(dropbox_redirect)) {
+	match (D.OAuth.get_request_token(dropbox_redirect_url)) {
         case {success: s}:
-            DC.set({pending_request: {secret : s.secret, token:s.token}});
-	    {success: D.OAuth.build_authorize_url(s.token, dropbox_redirect) }
-        case {~error}: err("Error getting request token: {error}")
+            DC.set({pending_request: s});
+	    {success: D.OAuth.build_authorize_url(s.token, dropbox_redirect_url) }
+        case {~error}: mkerror("Error getting request token: {error}")
         }
     }
 
@@ -62,27 +62,27 @@ module DropboxAuth {
 
     function pass1(raw_token) {
 	match(DC.get()) {
-	case {pending_request: creds}: pass2(creds, raw_token);
-        case  _ : err("The current user did not request a token")
+	case {pending_request: req}: pass2(req, raw_token);
+        case  _ : mkerror("The current user did not request a token")
         }
     }
 
-    function pass2(creds, raw_token) {
+    function pass2(req, raw_token) {
 	match(D.OAuth.connection_result(raw_token)) {
-	case {success: s}: pass3(creds, s)
-	case {~error}: err("The providing arguments are invalid: {error}")
+	case {success: token}: pass3(req, token)
+	case {~error}: mkerror("The providing arguments are invalid: {error}")
         }
     }
 
-    function pass3(creds, s) {
-	if (s.token == creds.token) {
+    function pass3(OAuth.token req, OAuth.token s) {
+	if (s.token == req.token) {
 	    if (s.verifier == "" && s.secret == "") {
-	        pass4(s.token, creds.secret)
+	        pass4(s.token, req.secret)
             } else {
-		err("The connection result contains those unexpected values: verifier: '{s.verifier}' and secret: '{s.secret}'")
+		mkerror("The connection result contains those unexpected values: verifier: '{s.verifier}' and secret: '{s.secret}'")
             }
         } else {
-            err("The request token of the current user doesn't match provided arguments.")
+            mkerror("The request token of the current user doesn't match provided arguments.")
         }
     }
 
@@ -91,7 +91,7 @@ module DropboxAuth {
         case {success: s}:
             Log.info("Oauth completed", "{OpaSerialize.to_string(s)}");
             DC.set({authenticated: {token:s.token, secret:s.secret}}); {success}
-	case {~error}: err("Impossible to retrieve an access token: {error}")
+	case {~error}: mkerror("Impossible to retrieve an access token: {error}")
         }
     }
 }

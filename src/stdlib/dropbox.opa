@@ -79,8 +79,8 @@ type Dropbox.thumb_size =
 type Dropbox.metadata = {
   rev          : string   // TODO: only meaningful for files
   thumb_exists : bool
-  size         : int // bytes
-  size_text    : string
+  bytes        : int
+  size         : string
   modified     : option(Date.date)
   path         : string
   icon         : string
@@ -225,8 +225,8 @@ type Dropbox.file = {
     metadata = {
       rev          = str("rev")
       thumb_exists = bool("thumb_exists")
-      size         = int("bytes")
-      size_text    = str("size")
+      bytes        = int("bytes")
+      size         = str("size")
       modified     = modified
       path         = str("path")
       icon         = str("icon")
@@ -318,7 +318,8 @@ type Dropbox.file = {
     custom_headers    = []
   } : OAuth.parameters)
 
-    // Mathieu: FIXME: in the functions below, an error code != 200 is not considered a failure... We should return a meaningful value based on the error code instead.
+// Mathieu: FIXME: Deal with error codes correctly in the functions below.
+// An error code != 200 is not considered a failure... We should return a meaningful value based on the error code instead.
 
   wget(host, path, params, credentials:Dropbox.credentials, parse_fun) =
     uri = "{host}{path}"
@@ -381,23 +382,16 @@ Dropbox(conf:Dropbox.conf) = {{
     rev             = none
   } : Dropbox.metadata_options
 
-  Files(root:string, file:string) = {{
+  Files = {{
 
-    @private file_path =
-      file =
-        if file == "" then "/"
-        else if String.sub(0, 1, file) == "/" then file
-        else "/{file}"
-      "{root}{file}"
-
-    get(rev:option(int), credentials) =
+    get(file_path:string, rev:option(int), credentials) =
       path = "files/{file_path}"
       params = match rev with
         | {none} -> []
         | {some=r} -> [("rev", Int.to_string(r))]
       DBP.wget(content_host, path, params, credentials, DBParse.build_file)
 
-    put(mimetype, file:binary, overwrite, parent_rev:option(int), credentials) =
+    put(file_path:string, mimetype, file:binary, overwrite, parent_rev:option(int), credentials) =
       path = "files_put/{file_path}"
       params = [
         ("overwrite", Bool.to_string(overwrite)),
@@ -423,7 +417,7 @@ Dropbox(conf:Dropbox.conf) = {{
           | {some=r} -> List.cons(("rev", Int.to_string(r)), _)
       )
 
-    metadata(options, credentials) =
+    metadata(file_path:string, options, credentials) =
       path = "metadata/{file_path}"
       params = format_metadata_options(options)
       DBP.wget(api_host, path, params, credentials, DBParse.build_one_metadata)
@@ -441,14 +435,14 @@ Dropbox(conf:Dropbox.conf) = {{
     /**
      * default: 10 - max: 1000
      */
-    revisions(rev_limit:option(int), credentials) =
+    revisions(file_path:string, rev_limit:option(int), credentials) =
       path = "revisions/{file_path}"
       params = match rev_limit with
         | {none} -> []
         | {some=l} -> [("rev_limit", Int.to_string(l))]
       DBP.wget(api_host, path, params, credentials, DBParse.build_metadata_list)
 
-    restore(rev, credentials) =
+    restore(file_path:string, rev, credentials) =
       path = "restore/{file_path}"
       params = [("rev", Int.to_string(rev))]
       DBP.wpost(api_host, path, params, credentials, DBParse.build_one_metadata)
@@ -456,7 +450,7 @@ Dropbox(conf:Dropbox.conf) = {{
     /**
      * default and max: 1000
      */
-    search(query, include_deleted:bool, file_limit:option(int), credentials) =
+    search(file_path:string, query, include_deleted:bool, file_limit:option(int), credentials) =
       path = "search/{file_path}"
       params = [
         ("query", query),
@@ -468,11 +462,11 @@ Dropbox(conf:Dropbox.conf) = {{
       )
       DBP.wget(api_host, path, params, credentials, DBParse.build_metadata_list)
 
-    shares(credentials) =
+    shares(file_path:string, credentials) =
       path = "shares/{file_path}"
       DBP.wpost(api_host, path, [], credentials, DBParse.build_url)
 
-    media(credentials) =
+    media(file_path:string, credentials) =
       path = "media/{file_path}"
       DBP.wpost(api_host, path, [], credentials, DBParse.build_url)
 
@@ -480,7 +474,7 @@ Dropbox(conf:Dropbox.conf) = {{
      * Prefer [jpeg] for photos while [png] is better for
      * screenshots and digital art
      */
-    thumbnails(format:Dropbox.thumb_format, size:Dropbox.thumb_size, credentials) =
+    thumbnails(file_path:string, format:Dropbox.thumb_format, size:Dropbox.thumb_size, credentials) =
       path = "thumbnails/{file_path}"
       format = match format with
         | {jpeg} -> "JPEG"
