@@ -2,6 +2,7 @@
 
 SRCDIR=src
 SOURCES=$(addprefix $(SRCDIR)/,data.opa statbox.opa)
+
 LIBDIR=src/stdlib
 LIBS=custom.stdlib.apis.common.opx custom.stdlib.apis.oauth.opx custom.stdlib.apis.dropbox.opx
 
@@ -22,16 +23,18 @@ clean::
 
 ## hackish deployment scripts: use with care
 DBPATH=$(HOME)/var/mongodb
+BINPATH=$(HOME)/bin
 
 run:: statbox
 	killall mongod || true
-	mongod --dbpath $(DBPATH)
+	mkdir -p $(DBPATH)
+	$(BINPATH)/mongod --dbpath $(DBPATH) &
 	killall statbox || true
 	authbind ./statbox -p 80
 
 clean-all:: clean
 	@echo "Press enter to reset the database in $(DBPATH)" && read i && [ "xx$$i" == "xx" ]
-	rm -rf $(DBPATH)/*
+	rm -rf $(DBPATH)/* access.log error.log
 
 deploy::
 	git push -f origin master:deploy && \
