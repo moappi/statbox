@@ -27,8 +27,8 @@ D = Dropbox(dropbox_config)
 
 type dropbox_status = 
    {disconnected}
-or {Dropbox.creds pending_request}
-or {Dropbox.creds authenticated}
+or {Dropbox.credentials pending_request}
+or {Dropbox.credentials authenticated}
 
 // Mathieu: FIXME: OAuth should be stored in DB to survive server restart
 // However Opa's OAuth client does not know how about HTTP error codes(!!), so it might be tricky to trigger a reauthentication when the tokens expire

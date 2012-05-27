@@ -19,6 +19,7 @@ package custom.stdlib.apis.dropbox
 */
 /*
  * Author    : Nicolas Glondu <nicolas.glondu@mlstate.com>
+ * Updated by: Mathieu Baudet <mathieu.baudet@gmail.com>
  **/
 
 /**
@@ -26,6 +27,7 @@ package custom.stdlib.apis.dropbox
  *
  * @category api
  * @author Nicolas Glondu, 2011
+ * @author Mathieu Baudet, 2012
  * @destination public
  */
 
@@ -35,7 +37,7 @@ import stdlib.apis.oauth
 /**
  * Dropbox configuration
  *
- * To obtain a credentials, visit:
+ * To obtain application credentials, visit:
  *  https://www.dropbox.com/developers/apps
  */
 type Dropbox.conf = {
@@ -43,7 +45,7 @@ type Dropbox.conf = {
   app_secret : string
 }
 
-type Dropbox.creds = {
+type Dropbox.credentials = {
   token  : string
   secret : string
 }
@@ -54,6 +56,12 @@ type Dropbox.metadata_options = {
   list            : bool
   include_deleted : bool
   rev             : option(int)
+    //TODO: locale
+}
+
+type Dropbox.delta_options = {
+  cursor          : option(string)
+    //TODO: locale
 }
 
 type Dropbox.thumb_format = {jpeg} / {png}
@@ -69,7 +77,7 @@ type Dropbox.thumb_size =
 /* Types returned by API */
 
 type Dropbox.metadata = {
-  rev          : string
+  rev          : string   // TODO: only meaningful for files
   thumb_exists : bool
   size         : int // bytes
   size_text    : string
@@ -78,6 +86,18 @@ type Dropbox.metadata = {
   icon         : string
   root         : string
   is_deleted   : bool
+}
+
+type Dropbox.delta_entry = {
+  path: string  // lowercase path
+  metadata: option(Dropbox.element)
+}
+
+type Dropbox.delta = {
+  entries      : list(Dropbox.delta_entry)
+  reset        : bool
+  cursor       : string
+  has_more     : bool
 }
 
 /**
@@ -90,10 +110,10 @@ type Dropbox.metadata = {
 type Dropbox.element =
     { file
       metadata  : Dropbox.metadata
-      mime_type : string }
+      mime_type : string }     // TODO: client_mtime
   / { folder
       metadata  : Dropbox.metadata
-      contents  : option(list(Dropbox.element)) }
+      contents  : option(list(Dropbox.element)) } // TODO: hash
 
 type Dropbox.quota_info = {
   shared : int
@@ -125,7 +145,8 @@ type Dropbox.file = {
   /**
    * Example of date: Fri, 20 Jan 2012 16:18:23 +0000
    */
-  parse_date(str) =
+  build_date(str) =
+    do Log.debug("Parsing date", "{OpaSerialize.to_string(str)}")
     int_of_text(t) = Int.of_string(Text.to_string(t))
     n = parser k=[0-9] -> k
     nn = parser v=(n+) -> int_of_text(v)
@@ -155,15 +176,17 @@ type Dropbox.file = {
       | "Oct" -> {october}
       | "Nov" -> {november}
       | "Dec" -> {december}
-    p = parser (!n .)* d=nn " " m=mon " " y=nn " " h=nn ":" min=nn ":" s=nn " " tmz=tmz ->
-      tmz(Date.build({year=y month=m day=d h=h min=min s=s}))
+    p = parser
+      | (!n .)* d=nn " " m=mon " " y=nn " " h=nn ":" min=nn ":" s=nn " " tmz=tmz ->
+        tmz(Date.build({year=y month=m day=d h=h min=min s=s}))
     match Parser.try_parse(p, str) with
     | {some=d} -> d
     | {none} ->
-      do Log.error("parse_date", "Can't parse '{str}'")
+      do Log.error("build_date", "Failed to parse '{str}'")
       Date.now()
 
   build_quota(data) =
+    do Log.debug("Parsing quota", "{OpaSerialize.to_string(data)}")
     map = JsonOpa.record_fields(data) ? Map.empty
     int(name) = API_libs_private.map_get_int(name, map)
     { shared = int("shared")
@@ -172,8 +195,7 @@ type Dropbox.file = {
     } : Dropbox.quota_info
 
   build_infos(data) =
-        // debug
-    do Log.info("Parsing infos", "{OpaSerialize.to_string(data)}")
+    do Log.debug("Parsing infos", "{OpaSerialize.to_string(data)}")
     map = API_libs_private.parse_json(data.content)
       |> JsonOpa.record_fields
       |> Option.default(Map.empty, _)
@@ -190,7 +212,8 @@ type Dropbox.file = {
       country       = str("country")
     } : Dropbox.info
 
-  build_metadata_internal(elt) : Dropbox.element =
+  build_element(elt) : Dropbox.element =
+    do Log.debug("Parsing element", "{OpaSerialize.to_string(elt)}")
     map = JsonOpa.record_fields(elt) ? Map.empty
     int(name) = API_libs_private.map_get_int(name, map)
     str(name) = API_libs_private.map_get_string(name, map)
@@ -198,7 +221,7 @@ type Dropbox.file = {
     modified =
       date_str = str("modified")
       if date_str == "" then none
-      else some(parse_date(date_str))
+      else some(build_date(date_str))
     metadata = {
       rev          = str("rev")
       thumb_exists = bool("thumb_exists")
@@ -215,32 +238,66 @@ type Dropbox.file = {
       contents : option(list(Dropbox.element)) =
         match StringMap.get("contents", map) with
         | {some={List=l}} ->
-          some(List.map(build_metadata_internal, l))
+          some(List.map(build_element, l))
         | _ -> none
       {folder ~metadata ~contents}
     else
       mime_type = str("mime_type")
       {file ~metadata ~mime_type}
 
-  one_metadata(data) =
+  build_one_metadata(data) =
+    do Log.debug("Parsing one metadata", "{OpaSerialize.to_string(data)}")
     parsed = API_libs_private.parse_json(data.content)
-    build_metadata_internal(parsed)
+    build_element(parsed)
 
-  metadata_list(data) =
+  build_metadata_list(data) =
+    do Log.debug("Parsing metadata list", "{OpaSerialize.to_string(data)}")
     match API_libs_private.parse_json(data.content) with
-    | {List=l} -> List.map(build_metadata_internal, l)
+    | {List=l} -> List.map(build_element, l)
     | _ -> []
 
+  build_delta_entries(acc, ljson) =
+    match ljson with
+    | [] -> List.rev(acc)
+    | [{ List = [{String = path}, ({Record = _} as jmetadata)] } | q] ->
+      build_delta_entries([{ path=path
+                             metadata={some=build_element(jmetadata)}
+                          } | acc], q)
+    | [{ List = [{String = path}] } | q]   ->
+      build_delta_entries([{~path metadata={none}} | acc], q)
+    | [{ List = [{String = path}, _] } | q ] ->
+      build_delta_entries([{~path metadata={none}} | acc], q)
+    | [ _ | q ] -> build_delta_entries(acc, q)
+
+  build_delta(data) =
+    do Log.debug("Parsing delta entries", "{OpaSerialize.to_string(data)}");
+    map = API_libs_private.parse_json(data.content)
+      |> JsonOpa.record_fields
+      |> Option.default(Map.empty, _)
+    str(name) = API_libs_private.map_get_string(name, map)
+    bool(name) = API_libs_private.map_get_bool(name, map, false)
+    entries : list(Dropbox.delta_entry) =
+        match StringMap.get("entries", map) with
+        | {some={List=l}} -> build_delta_entries([], l)
+        | _ -> []
+    { entries = entries
+      reset   = bool("reset")
+      cursor = str("cursor")
+      has_more = bool("has_more")
+    } : Dropbox.delta
+        
   build_url(data) =
+    do Log.debug("Parsing URL", "{OpaSerialize.to_string(data)}")
     map = API_libs_private.parse_json(data.content)
       |> JsonOpa.record_fields
       |> Option.default(Map.empty, _)
     str(name) = API_libs_private.map_get_string(name, map)
     { url     = str("url")
-      expires = str("expires") |> parse_date
+      expires = str("expires") |> build_date
     } : Dropbox.url
 
   build_file(data) =
+    do Log.debug("Parsing file", "{OpaSerialize.to_string(data)}")
     { content = data.content
       mime_type = data.mime_type
     } : Dropbox.file
@@ -261,23 +318,25 @@ type Dropbox.file = {
     custom_headers    = []
   } : OAuth.parameters)
 
-  wget(host, path, params, creds:Dropbox.creds, parse_fun) =
+    // Mathieu: FIXME: in the functions below, an error code != 200 is not considered a failure... We should return a meaningful value based on the error code instead.
+
+  wget(host, path, params, credentials:Dropbox.credentials, parse_fun) =
     uri = "{host}{path}"
-    res = DBOAuth({GET}).get_protected_resource_2(uri, params, creds.token, creds.secret)
+    res = DBOAuth({GET}).get_protected_resource_2(uri, params, credentials.token, credentials.secret)
     match res with
     | {success=s} -> {success=parse_fun(s)}
     | {failure=f} -> {failure=f}
 
-  wpost(host, path, params, creds:Dropbox.creds, parse_fun) =
+  wpost(host, path, params, credentials:Dropbox.credentials, parse_fun) =
     uri = "{host}{path}"
-    res = DBOAuth({POST}).get_protected_resource_2(uri, params, creds.token, creds.secret)
+    res = DBOAuth({POST}).get_protected_resource_2(uri, params, credentials.token, credentials.secret)
     match res with
     | {success=s} -> {success=parse_fun(s)}
     | {failure=f} -> {failure=f}
 
-  wput(host, path, mimetype:string, file:binary, params, creds:Dropbox.creds, parse_fun) =
+  wput(host, path, mimetype:string, file:binary, params, credentials:Dropbox.credentials, parse_fun) =
     uri = "{host}{path}"
-    res = DBOAuth({PUT=~{mimetype file}}).get_protected_resource_2(uri, params, creds.token, creds.secret)
+    res = DBOAuth({PUT=~{mimetype file}}).get_protected_resource_2(uri, params, credentials.token, credentials.secret)
     match res with
     | {success=s} -> {success=parse_fun(s)}
     | {failure=f} -> {failure=f}
@@ -309,8 +368,8 @@ Dropbox(conf:Dropbox.conf) = {{
 
   Account = {{
 
-    info(creds) =
-      DBP.wget(api_host, "account/info", [], creds, DBParse.build_infos)
+    info(credentials) =
+      DBP.wget(api_host, "account/info", [], credentials, DBParse.build_infos)
 
   }}
 
@@ -331,14 +390,14 @@ Dropbox(conf:Dropbox.conf) = {{
         else "/{file}"
       "{root}{file}"
 
-    get(rev:option(int), creds) =
+    get(rev:option(int), credentials) =
       path = "files/{file_path}"
       params = match rev with
         | {none} -> []
         | {some=r} -> [("rev", Int.to_string(r))]
-      DBP.wget(content_host, path, params, creds, DBParse.build_file)
+      DBP.wget(content_host, path, params, credentials, DBParse.build_file)
 
-    put(mimetype, file:binary, overwrite, parent_rev:option(int), creds) =
+    put(mimetype, file:binary, overwrite, parent_rev:option(int), credentials) =
       path = "files_put/{file_path}"
       params = [
         ("overwrite", Bool.to_string(overwrite)),
@@ -347,8 +406,8 @@ Dropbox(conf:Dropbox.conf) = {{
         | {none} -> identity
         | {some=r} -> List.cons(("parent_rev", Int.to_string(r)), _)
       )
-      do ignore(file)
-      DBP.wput(content_host, path, mimetype, file, params, creds, DBParse.one_metadata)
+      //      do ignore(file) //Mathieu: strange useless line commented out
+      DBP.wput(content_host, path, mimetype, file, params, credentials, DBParse.build_one_metadata)
 
     @private format_metadata_options(o:Dropbox.metadata_options) =
       [ ("file_limit", Int.to_string(o.file_limit)),
@@ -364,30 +423,40 @@ Dropbox(conf:Dropbox.conf) = {{
           | {some=r} -> List.cons(("rev", Int.to_string(r)), _)
       )
 
-    metadata(options, creds) =
+    metadata(options, credentials) =
       path = "metadata/{file_path}"
       params = format_metadata_options(options)
-      DBP.wget(api_host, path, params, creds, DBParse.one_metadata)
+      DBP.wget(api_host, path, params, credentials, DBParse.build_one_metadata)
+
+    @private format_delta_options(o:Dropbox.delta_options) =
+        match o.cursor with
+          | {none} -> []
+          | {some=h} -> [("cursor", h)]
+
+    delta(options, credentials) =
+      path = "delta"
+      params = format_delta_options(options)
+      DBP.wpost(api_host, path, params, credentials, DBParse.build_delta)
 
     /**
      * default: 10 - max: 1000
      */
-    revisions(rev_limit:option(int), creds) =
+    revisions(rev_limit:option(int), credentials) =
       path = "revisions/{file_path}"
       params = match rev_limit with
         | {none} -> []
         | {some=l} -> [("rev_limit", Int.to_string(l))]
-      DBP.wget(api_host, path, params, creds, DBParse.metadata_list)
+      DBP.wget(api_host, path, params, credentials, DBParse.build_metadata_list)
 
-    restore(rev, creds) =
+    restore(rev, credentials) =
       path = "restore/{file_path}"
       params = [("rev", Int.to_string(rev))]
-      DBP.wpost(api_host, path, params, creds, DBParse.one_metadata)
+      DBP.wpost(api_host, path, params, credentials, DBParse.build_one_metadata)
 
     /**
      * default and max: 1000
      */
-    search(query, include_deleted:bool, file_limit:option(int), creds) =
+    search(query, include_deleted:bool, file_limit:option(int), credentials) =
       path = "search/{file_path}"
       params = [
         ("query", query),
@@ -397,21 +466,21 @@ Dropbox(conf:Dropbox.conf) = {{
         | {none} -> identity
         | {some=l} -> List.cons(("file_limit", Int.to_string(l)), _)
       )
-      DBP.wget(api_host, path, params, creds, DBParse.metadata_list)
+      DBP.wget(api_host, path, params, credentials, DBParse.build_metadata_list)
 
-    shares(creds) =
+    shares(credentials) =
       path = "shares/{file_path}"
-      DBP.wpost(api_host, path, [], creds, DBParse.build_url)
+      DBP.wpost(api_host, path, [], credentials, DBParse.build_url)
 
-    media(creds) =
+    media(credentials) =
       path = "media/{file_path}"
-      DBP.wpost(api_host, path, [], creds, DBParse.build_url)
+      DBP.wpost(api_host, path, [], credentials, DBParse.build_url)
 
     /**
      * Prefer [jpeg] for photos while [png] is better for
      * screenshots and digital art
      */
-    thumbnails(format:Dropbox.thumb_format, size:Dropbox.thumb_size, creds) =
+    thumbnails(format:Dropbox.thumb_format, size:Dropbox.thumb_size, credentials) =
       path = "thumbnails/{file_path}"
       format = match format with
         | {jpeg} -> "JPEG"
@@ -428,45 +497,45 @@ Dropbox(conf:Dropbox.conf) = {{
         ("format", format),
         ("size", size),
       ]
-      DBP.wget(content_host, path, params, creds, DBParse.build_file)
+      DBP.wget(content_host, path, params, credentials, DBParse.build_file)
 
   }}
 
   FileOps = {{
 
-    copy(root, from_path, to_path, creds) =
+    copy(root, from_path, to_path, credentials) =
       path = "fileops/copy"
       params = [
         ("root", root),
         ("from_path", from_path),
         ("to_path", to_path),
       ]
-      DBP.wpost(api_host, path, params, creds, DBParse.one_metadata)
+      DBP.wpost(api_host, path, params, credentials, DBParse.build_one_metadata)
 
-    create_folder(root, path, creds) =
+    create_folder(root, path, credentials) =
       rpath = "fileops/create_folder"
       params = [
         ("root", root),
         ("path", path),
       ]
-      DBP.wpost(api_host, rpath, params, creds, DBParse.one_metadata)
+      DBP.wpost(api_host, rpath, params, credentials, DBParse.build_one_metadata)
 
-    delete(root, path, creds) =
+    delete(root, path, credentials) =
       rpath = "fileops/delete"
       params = [
         ("root", root),
         ("path", path),
       ]
-      DBP.wpost(api_host, rpath, params, creds, DBParse.one_metadata)
+      DBP.wpost(api_host, rpath, params, credentials, DBParse.build_one_metadata)
 
-    move(root, from_path, to_path, creds) =
+    move(root, from_path, to_path, credentials) =
       path = "fileops/move"
       params = [
         ("root", root),
         ("from_path", from_path),
         ("to_path", to_path),
       ]
-      DBP.wpost(api_host, path, params, creds, DBParse.one_metadata)
+      DBP.wpost(api_host, path, params, credentials, DBParse.build_one_metadata)
 
   }}
 
