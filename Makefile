@@ -1,7 +1,7 @@
 SRCLIBS=src/stdlib/dropbox.opa
 LIBS=custom.stdlib.apis.dropbox.opx
 
-SOURCES=src/statbox.opa
+SOURCES=src/data.opa src/statbox.opa
 
 statbox: $(LIBS) $(SOURCES)
 	opa $(SOURCES) -o statbox

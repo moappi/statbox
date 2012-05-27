@@ -2,7 +2,8 @@ import stdlib.themes.bootstrap
 import stdlib.widgets.bootstrap
 
 //import stdlib.tools.gcharts
-//import stdlib.apis.mongo
+import stdlib.apis.mongo
+import stdlib.database.mongo
 
 import custom.stdlib.apis.dropbox
 import stdlib.core.rpc.core
@@ -11,6 +12,7 @@ WB = WBootstrap
 
 host = "takehome2.dropbox.com"
 
+// FIXME move keys away from the code
 dropbox_config = {
     app_key: "6f8l9xg85hxiilr",
     app_secret: "xhw9qkcqdzzvfuk"
@@ -27,6 +29,9 @@ type dropbox_status =
    {disconnected}
 or {Dropbox.creds pending_request}
 or {Dropbox.creds authenticated}
+
+// Mathieu: FIXME: OAuth should be stored in DB to survive server restart
+// However Opa's OAuth client does not know how about HTTP error codes(!!), so it might be tricky to trigger a reauthentication when the tokens expire
 
 module DropboxContext {
 
@@ -113,10 +118,11 @@ function process_dropbox_token(raw_token, url) {
 
 function main_page_authenticated(creds) {
     match (D.Account.info(creds)) {
-    case {success:infos}:
-        html = <div>{OpaSerialize.to_string(infos)}</div>;
-        Resource.html("Welcome {infos.display_name}", html)
-    default:
+    case {success:info}:
+        html = <div>{OpaSerialize.to_string(info)}</div>;
+            /users/all[uid == info.uid] = {uid: info.uid, last_info: info, last_cursor: ""};
+        Resource.html("Welcome {info.display_name}", html)
+    default: // BUG of OPA stdlib: we never catch bugs here
         error_page("Error while retrieving the account information");
     }
 }
@@ -129,9 +135,19 @@ function main_page() {
     }
 }
 
+function admin_page() {
+    dbset(user, _) dbusers = /users/all;
+    dbset(entry, _) dbentries = /entries/all;
+    users = <>{dbusers}</>;
+    entries = <>{dbentries}</>;
+    html = <><h1>Users</h1>{users}<h1>Entries</h1>{entries}</>;
+    Resource.html("Admin page", html);
+}
+
 dispatcher = parser {
 case "/dropbox/connect?" raw_token=(.*) : process_dropbox_token(Text.to_string(raw_token), "/")
 //case "/favicon.ico": **TODO**
+case "/admin": admin_page()
 case "/" : main_page()
 }
 
