@@ -48,7 +48,7 @@ function set_user_delta_options(int uid, string cursor) {
     /users/all[{~uid}]/last_cursor = some(cursor)
 }
 
-function flush_user_entries(int uid) {
+function flush_user_entries(int uid) { // FIXME slow
     dbset(entry, _) entries = /entries/all[uid == uid];
     Iter.iter(
         function(e) { Db.remove(@/entries/all[{uid:e.uid, path:e.path}]) },
@@ -56,7 +56,7 @@ function flush_user_entries(int uid) {
     )
 }
 
-function count_user_entries(int uid) {
+function count_user_entries(int uid) { // FIXME slow
     dbset(entry, _) entries = /entries/all[uid == uid];
     Iter.count(
         DbSet.iterator(entries)
@@ -64,20 +64,25 @@ function count_user_entries(int uid) {
 }
 
 function process_delta_entry(int uid, Dropbox.delta_entry e) {
+    Log.info("Update_user_entries", "Processing delta entry: {e.path}");
     path = e.path
     dbpath = @/entries/all[{~uid, ~path}]
     match(e.metadata) {
     case {some: element}:
-        if (element.metadata.path == "") Db.remove(dbpath) // work around supposedly a bug of the API
-        else Db.write(dbpath, {~uid, ~path, ~element})
+        Log.info("Update_user_entries", "Writing entry {uid}:{e.path} = {OpaSerialize.to_string({~uid, ~path, ~element})}");
+        Db.write(dbpath, {~uid, ~path, ~element})
     case default: Db.remove(dbpath)
+        Log.info("Update_user_entries", "Removing entry {uid}:{e.path}");
     }
 }
 
 function update_user_entries(int uid, Dropbox.delta delta) { 
     if (delta.reset) {
-        flush_user_entries(uid)
-    } else {
-        List.iter(process_delta_entry(uid, _), delta.entries)
+        Log.info("Update_user_entries", "flushing all data of user {uid}");
+        flush_user_entries(uid);
+        Log.info("Update_user_entries", "Done");
     }
+    Log.info("Update_user_entries", "Processing delta entries for user {uid}");
+    List.iter(process_delta_entry(uid, _), delta.entries);
+    Log.info("Update_user_entries", "Done");
 }

@@ -219,7 +219,7 @@ type Dropbox.file = {
   make_element(elt) : Dropbox.element =
     do Log.info("Parsing element", "{OpaSerialize.to_string(elt)}")
     map = JsonOpa.record_fields(elt) ? Map.empty
-    int(name) = API_libs_private.map_get_int(name, map)
+    int(name) = API_libs_private.map_get_int(name, map) //Mathieu: this function seems to return -1 on an empty entry. This is a bit dangerous...
     str(name) = API_libs_private.map_get_string(name, map)
     bool(name) = API_libs_private.map_get_bool(name, map, false)
     modified =
@@ -268,6 +268,8 @@ type Dropbox.file = {
   build_delta_entries(acc, ljson) =
     match ljson with
     | [] -> List.rev(acc)
+    | [{ List = [{String = path}, {Record = []}] } | q]   ->
+      build_delta_entries([{~path metadata={none}} | acc], q)
     | [{ List = [{String = path}, ({Record = _} as jmetadata)] } | q] ->
       build_delta_entries([{ path=path
                              metadata={some=make_element(jmetadata)}
