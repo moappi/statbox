@@ -1,14 +1,14 @@
 ## build rules
 
 SRCDIR=src
-SOURCES=$(addprefix $(SRCDIR)/,data.opa pages.opa statbox.opa)
+SOURCES=$(addprefix $(SRCDIR)/,data.opa config.opa session.opa server.opa main.opa view.opa)
 RESOURCES=resources/*
 
 LIBDIR=src/stdlib
 LIBS=custom.stdlib.apis.common.opx custom.stdlib.apis.oauth.opx custom.stdlib.apis.dropbox.opx
 
 statbox: $(LIBS) $(SOURCES) $(RESOURCES)
-	opa $(SOURCES) -o statbox
+	opa $(SOURCES) -o statbox --slicer-dump
 
 custom.stdlib.apis.common.opx: $(LIBDIR)/api_libs.opa
 	opa -c --parser classic $^
