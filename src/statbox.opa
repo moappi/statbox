@@ -143,7 +143,7 @@ function main_page_authenticated(Dropbox.credentials credentials) {
         } else {
             error_page("Error while retrieving the deltas on files");
         }
-    default: // BUG of OPA stdlib: we never catch bugs here
+    default: // BUG of the API client: we don't fail on error codes != 200
         error_page("Error while retrieving the account information");
     }
 }
@@ -180,4 +180,8 @@ case "/admin": admin_page()
 case "/" : main_page()
 }
 
-Server.start(Server.http, {custom : dispatcher})
+Server.start(Server.http, [
+//    { resources: @static_resource_directory("resources") },
+//    { register: {css : ["resources/container.css"] }},
+    {custom : dispatcher}
+])

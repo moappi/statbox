@@ -150,8 +150,8 @@ type Dropbox.file = {
   /**
    * Example of date: Fri, 20 Jan 2012 16:18:23 +0000
    */
-  build_date(str) =
-    do Log.info("Parsing date", "{OpaSerialize.to_string(str)}")
+  make_date(str) =
+    do Log.info("Dropbox client", "Making date from {OpaSerialize.to_string(str)}")
     int_of_text(t) = Int.of_string(Text.to_string(t))
     n = parser k=[0-9] -> k
     nn = parser v=(n+) -> int_of_text(v)
@@ -186,11 +186,11 @@ type Dropbox.file = {
     match Parser.try_parse(p, str) with
     | {some=d} -> d
     | {none} ->
-      do Log.error("build_date", "Failed to parse '{str}'")
+      do Log.error("make_date", "Failed to parse '{str}'")
       Date.now()
 
   build_quota(data) =
-    do Log.info("Parsing quota", "{OpaSerialize.to_string(data)}")
+    do Log.info("Dropbox client", "Parsing quota from {OpaSerialize.to_string(data)}")
     map = JsonOpa.record_fields(data) ? Map.empty
     int(name) = API_libs_private.map_get_int(name, map)
     { shared = int("shared")
@@ -199,7 +199,7 @@ type Dropbox.file = {
     } : Dropbox.quota_info
 
   build_infos(data) =
-    do Log.info("Parsing infos", "{OpaSerialize.to_string(data)}")
+    do Log.info("Dropbox client", "Parsing infos from {OpaSerialize.to_string(data)}")
     map = API_libs_private.parse_json(data.content)
       |> JsonOpa.record_fields
       |> Option.default(Map.empty, _)
@@ -217,7 +217,7 @@ type Dropbox.file = {
     } : Dropbox.info
 
   make_element(elt) : Dropbox.element =
-    do Log.info("Parsing element", "{OpaSerialize.to_string(elt)}")
+    do Log.info("Dropbox client", "Making element from {OpaSerialize.to_string(elt)}")
     map = JsonOpa.record_fields(elt) ? Map.empty
     int(name) = API_libs_private.map_get_int(name, map) //Mathieu: this function seems to return -1 on an empty entry. This is a bit dangerous...
     str(name) = API_libs_private.map_get_string(name, map)
@@ -225,7 +225,7 @@ type Dropbox.file = {
     modified =
       date_str = str("modified")
       if date_str == "" then none
-      else some(build_date(date_str))
+      else some(make_date(date_str))
     metadata = {
       rev          = str("rev")
       thumb_exists = bool("thumb_exists")
@@ -251,16 +251,16 @@ type Dropbox.file = {
       client_mtime =
           date_str = str("client_mtime")
           if date_str == "" then none
-          else some(build_date(date_str))
+          else some(make_date(date_str))
       {~metadata kind = {file = {~mime_type ~client_mtime}}}
 
   build_one_metadata(data) =
-    do Log.info("Parsing one metadata", "{OpaSerialize.to_string(data)}")
+    do Log.info("Dropbox client", "Parsing one metadata from {OpaSerialize.to_string(data)}")
     parsed = API_libs_private.parse_json(data.content)
     make_element(parsed)
 
   build_metadata_list(data) =
-    do Log.info("Parsing metadata list", "{OpaSerialize.to_string(data)}")
+    do Log.info("Dropbox client", "Parsing metadata list from {OpaSerialize.to_string(data)}")
     match API_libs_private.parse_json(data.content) with
     | {List=l} -> List.map(make_element, l)
     | _ -> []
@@ -278,10 +278,12 @@ type Dropbox.file = {
       build_delta_entries([{~path metadata={none}} | acc], q)
     | [{ List = [{String = path}, _] } | q ] ->
       build_delta_entries([{~path metadata={none}} | acc], q)
-    | [ _ | q ] -> build_delta_entries(acc, q)
+    | [ _ | q ] ->                
+        do Log.error("Dropbox client", "Skipping one invalid delta entry")
+        build_delta_entries(acc, q)
 
   build_delta(data) =
-    do Log.info("Parsing delta entries", "{OpaSerialize.to_string(data)}");
+    do Log.info("Dropbox client", "Parsing delta entries from {OpaSerialize.to_string(data)}");
     map = API_libs_private.parse_json(data.content)
       |> JsonOpa.record_fields
       |> Option.default(Map.empty, _)
@@ -298,17 +300,17 @@ type Dropbox.file = {
     } : Dropbox.delta
         
   build_url(data) =
-    do Log.info("Parsing URL", "{OpaSerialize.to_string(data)}")
+    do Log.info("Dropbox client", "Parsing URL from {OpaSerialize.to_string(data)}")
     map = API_libs_private.parse_json(data.content)
       |> JsonOpa.record_fields
       |> Option.default(Map.empty, _)
     str(name) = API_libs_private.map_get_string(name, map)
     { url     = str("url")
-      expires = str("expires") |> build_date
+      expires = str("expires") |> make_date
     } : Dropbox.url
 
   build_file(data) =
-    do Log.info("Parsing file", "{OpaSerialize.to_string(data)}")
+    do Log.info("Dropbox client", "Parsing file from {OpaSerialize.to_string(data)}")
     { content = data.content
       mime_type = data.mime_type
     } : Dropbox.file
