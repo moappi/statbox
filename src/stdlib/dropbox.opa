@@ -76,8 +76,8 @@ type Dropbox.thumb_size =
 
 /* Types returned by API */
 
-type Dropbox.metadata = {
-  rev          : string   // TODO: only meaningful for files
+type Dropbox.common_metadata = {
+  rev          : string
   thumb_exists : bool
   bytes        : int
   size         : string
@@ -88,9 +88,29 @@ type Dropbox.metadata = {
   is_deleted   : bool
 }
 
+type Dropbox.file_metadata =
+    { mime_type : string
+      client_mtime : option(Date.date)
+    }
+
+/**
+ * Note that an empty folder will have its [content] field
+ * to [some([])] and that [none] for this field just means
+ * that there was no information about the folder files.
+ */
+type Dropbox.folder_metadata =
+    { contents : option(list(Dropbox.element))
+      hash : string
+     }
+
+type Dropbox.element =
+    { metadata : Dropbox.common_metadata
+      kind : {file : Dropbox.file_metadata} / {folder : Dropbox.folder_metadata}
+    }
+
 type Dropbox.delta_entry = {
   path: string  // lowercase path
-  metadata: option(Dropbox.element)
+  metadata: option(Dropbox.element) //none = removed
 }
 
 type Dropbox.delta = {
@@ -99,21 +119,6 @@ type Dropbox.delta = {
   cursor       : string
   has_more     : bool
 }
-
-/**
- * Type of an element in a Dropbox folder
- *
- * Note that an empty folder will have its [content] field
- * to [some([])] and that [none] for this field just means
- * that there was no information about the folder files.
- */
-type Dropbox.element =
-    { file
-      metadata  : Dropbox.metadata
-      mime_type : string }     // TODO: client_mtime
-  / { folder
-      metadata  : Dropbox.metadata
-      contents  : option(list(Dropbox.element)) } // TODO: hash
 
 type Dropbox.quota_info = {
   shared : int
@@ -151,8 +156,7 @@ type Dropbox.file = {
     n = parser k=[0-9] -> k
     nn = parser v=(n+) -> int_of_text(v)
     do_shift(forward,h,min) =
-      d = { Duration.zero with ~forward ~h ~min }
-        |> Duration.of_human_readable
+      d = { Duration.zero with ~forward ~h ~min } |> Duration.of_human_readable
       Date.advance(_, d)
     shift(forward,h,m) =
       do_shift(forward,int_of_text(h),int_of_text(m))
@@ -212,7 +216,7 @@ type Dropbox.file = {
       country       = str("country")
     } : Dropbox.info
 
-  build_element(elt) : Dropbox.element =
+  make_element(elt) : Dropbox.element =
     do Log.debug("Parsing element", "{OpaSerialize.to_string(elt)}")
     map = JsonOpa.record_fields(elt) ? Map.empty
     int(name) = API_libs_private.map_get_int(name, map)
@@ -232,28 +236,33 @@ type Dropbox.file = {
       icon         = str("icon")
       root         = str("root")
       is_deleted   = bool("is_deleted")
-    } : Dropbox.metadata
+    }
     is_dir = bool("is_dir")
     if is_dir then
       contents : option(list(Dropbox.element)) =
         match StringMap.get("contents", map) with
         | {some={List=l}} ->
-          some(List.map(build_element, l))
+          some(List.map(make_element, l))
         | _ -> none
-      {folder ~metadata ~contents}
+      hash = str("hash")
+      {~metadata kind = {folder = {~contents ~hash}}}
     else
       mime_type = str("mime_type")
-      {file ~metadata ~mime_type}
+      client_mtime =
+          date_str = str("client_mtime")
+          if date_str == "" then none
+          else some(build_date(date_str))
+      {~metadata kind = {file = {~mime_type ~client_mtime}}}
 
   build_one_metadata(data) =
     do Log.debug("Parsing one metadata", "{OpaSerialize.to_string(data)}")
     parsed = API_libs_private.parse_json(data.content)
-    build_element(parsed)
+    make_element(parsed)
 
   build_metadata_list(data) =
     do Log.debug("Parsing metadata list", "{OpaSerialize.to_string(data)}")
     match API_libs_private.parse_json(data.content) with
-    | {List=l} -> List.map(build_element, l)
+    | {List=l} -> List.map(make_element, l)
     | _ -> []
 
   build_delta_entries(acc, ljson) =
@@ -261,7 +270,7 @@ type Dropbox.file = {
     | [] -> List.rev(acc)
     | [{ List = [{String = path}, ({Record = _} as jmetadata)] } | q] ->
       build_delta_entries([{ path=path
-                             metadata={some=build_element(jmetadata)}
+                             metadata={some=make_element(jmetadata)}
                           } | acc], q)
     | [{ List = [{String = path}] } | q]   ->
       build_delta_entries([{~path metadata={none}} | acc], q)

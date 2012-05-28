@@ -109,19 +109,40 @@ function go_to_dropbox_login_page() {
     }
 }
 
-function process_dropbox_token(raw_token, url) {
+function process_dropbox_token(string raw_token, string url) {
     match (DA.get_access(raw_token)) {
     case {~error}: error_page(error)
     case {success}: Resource.default_redirection_page(url)
     }
 }
 
-function main_page_authenticated(creds) {
-    match (D.Account.info(creds)) {
+function process_delta_entries(int uid, Dropbox.credentials credentials) {
+    match (D.Files.delta(get_user_delta_options(uid), credentials)) {
+    case {success:delta}:
+        update_user_entries(uid, delta);
+        set_user_delta_options(uid, delta.cursor);
+        if (delta.has_more) process_delta_entries(uid, credentials)
+        else true
+    default: false
+    }
+}
+
+function main_page_authenticated(Dropbox.credentials credentials) {
+    match (D.Account.info(credentials)) {
     case {success:info}:
-        html = <div>{OpaSerialize.to_string(info)}</div>;
         update_user_info(info);
-        Resource.html("Welcome {info.display_name}", html)
+        if (process_delta_entries(info.uid, credentials)) {
+            dbset(entry, _) entries = /entries/all[uid == info.uid];
+            html = <div>
+                <h2>Account informations</h2>
+                {OpaSerialize.to_string(info)}
+                <h2>Entries ({count_user_entries(info.uid)})</h2>
+                {Iter.to_list(Iter.map(entry_html, DbSet.iterator(entries)))}
+            </div>;
+            Resource.html("Welcome {info.display_name}", html);
+        } else {
+            error_page("Error while retrieving the deltas on files");
+        }
     default: // BUG of OPA stdlib: we never catch bugs here
         error_page("Error while retrieving the account information");
     }
@@ -131,7 +152,7 @@ function main_page() {
     match(DC.get()) {
     case {disconnected}: go_to_dropbox_login_page()
     case {pending_request: _}: Resource.html("Pending request", <h1>Pending request</h1>)
-    case {authenticated: creds}: main_page_authenticated(creds)
+    case {authenticated: credentials}: main_page_authenticated(credentials)
     }
 }
 
