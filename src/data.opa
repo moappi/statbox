@@ -299,7 +299,7 @@ function compute_filename(string path) {
     res = if (i < 0)
         path
     else
-        String.sub(i+1, n-1, path) // drop the "/" found
+        String.sub(i+1, n-1-i, path) // drop the "/" found
     Log.info("PathTool.compute_filename", "'{path}' ==> '{res}'");
     res
 }
