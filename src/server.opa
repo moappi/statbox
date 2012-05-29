@@ -74,6 +74,7 @@ module ServerLib {
             ViewLib.folder_info info =
                 {counter: Analytics.count_folder_entries(uid, path),
                  total_size: Analytics.get_folder_total_size(uid, path),
+                 dotslash_size: Analytics.get_folder_dotslash_size(uid, path),
                  full_path: Analytics.get_folder_full_path(uid, path),
                  subdirs: Analytics.list_folder_subdirs(uid, path),                 
                 }

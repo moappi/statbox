@@ -19,6 +19,7 @@ type Data.entry = {
     option(string) parent, // computed path for the parent folder (lowercased)
     Dropbox.element element,
     option(int) total_size // none if not computed yet
+// TODO    map(Data.icon, int) icon_size_map // computed as the same time as total_size
 }
 
 database entries @mongo {
@@ -239,6 +240,20 @@ function fold_folder_entries(int uid, string folder, init, f) {
 
 function get_folder_total_size(uid, path) {
     (?/entries/all[{~uid, ~path}]/total_size ? {none})
+}
+
+function get_folder_dotslash_size(uid, path) {
+
+    function f(size, entry) {
+        if (Data.is_folder(entry.element)) size
+        else size + entry.element.metadata.bytes
+    }
+
+    // TODO filter out folders within Mongo
+    dbset(Data.entry, _) entries =
+        /entries/all[uid == uid and parent == {some:path}];
+
+    DbSet.fold(0, entries)(f);
 }
 
 function get_folder_full_path(uid, path) {

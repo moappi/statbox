@@ -27,8 +27,9 @@ type ViewLib.subdir_element = { string label, string path_key, option(int) total
 type ViewLib.folder_info = {
     int counter,
     option(int) total_size,
+    int dotslash_size,
     list(ViewLib.path_element) full_path,
-    list(ViewLib.subdir_element) subdirs    
+    list(ViewLib.subdir_element) subdirs
 }
 
 // for some unknown reason, the Opa runtime fails if these reference are in the module below
@@ -88,72 +89,67 @@ module ViewLib {
         #login = html
     }
 
-    function total_size_html(total_size) {
-        match(total_size){
+    function size_opt_html(sizeopt) {
+        match(sizeopt){
         case {none}: <p>??</p>
         case {some:size}: human_readable_size(size)
         }
     }
 
+    function subdir_html({~label, ~path_key, ~total_size}, int limit) {
+            <span><a href="#" onclick={function(_){ServerLib.move_to_path(path_key)}}>{string_limit(label, limit)}</a> {size_opt_html(total_size)}</span>
+    }
+
 // TODO prefetch data of subdirs?
-    function render_folder(path, info) {
-       #content =
-        <div class="row" id="main">
-            <div class="span6 offset3">{path_html(path, info.full_path)}</div>
-            <div class="span1">
+    function render_folder(string path, ViewLib.folder_info info) {
+      /* navigation */
+      #content =
+        <div class="row" id="pathnav">
+          <div class="span6 offset3">{path_html(path, info.full_path)}</div>
+          <div class="span1">
             <a onclick={function(_){ ServerLib.refresh_content()} }>
-               <img src="resources/refresh.png" alt="refresh" height="32" width="32" />
-            </a></div>
-            <div class="span2">
-            { total_size_html(info.total_size) }
+              <img src="resources/refresh.png" alt="refresh" height="32" width="32" />
+            </a>
+          </div>
+          <div class="span2">
+            { size_opt_html(info.total_size) }
             <span class="divider">/</span>
             {info.counter} elements
-            </div>
+          </div>
         </div>
 
-       <div class="row-fluid">
-       <div class="span3" id="navigation">
-          <div class="sidebar-nav" id="navigation">
-            <ul class="nav nav-list">
-            <li class="nav-header">{"{path}"}</li>
-            {List.map(
-                function( {~label, ~path_key, ~total_size}) {
-                  <li>
-                  <a href="#" onclick={function(_){ServerLib.move_to_path(path_key)}}>{label}</a>
-                  { total_size_html(total_size) }
-                  </li>
-                }, info.subdirs)
-            }
-            </ul>
+       <div class="row">
+          <div class="well span3" id="navigation">
+            <div class="sidebar-nav" id="navigation">
+              <ul class="nav nav-list">
+              <li class="nav-header">{"{path}"}</li>
+              {List.map(function(sd){<li>{subdir_html(sd, 20)}</li>}, info.subdirs)}
+              </ul>
+            </div>
           </div>
           <div class="span9" id="charts">
           </div>
-
-        </div>
         </div>
 
-        render_charts(info.subdirs)
+      /* Charts */    
+      options = [ {title: "Space usage per sub-directory"},
+                  {width:400},
+                  {height:400},
+                ];
+
+      data = GCharts.DataTable.make_simple(
+          ("directory","size"),
+          List.cons(("(current dir)", info.dotslash_size),
+                    List.fold(function(e, l){ match(e.total_size) {
+                    case {none}: l
+                    case {some: size}: List.cons((e.label, size), l)
+                    }}, info.subdirs, [])
+                   ));
+
+      GCharts.draw({pie_chart}, "charts", data, options);
     }
 
-    function render_charts(subdirs) {
-        options = [ {title: "Space usage per sub-directory"},
-                    {width:400},
-                    {height:300},
-                  ];
-
-// TODO add an entry for files in ./
-        data = GCharts.DataTable.make_simple(
-            ("directory","size"),
-            List.fold(function(e, l){ match(e.total_size) {
-            case {none}: l
-            case {some: size}: List.cons((e.label, size), l)
-            }}, subdirs, [])
-        );
-        
-        GCharts.draw({pie_chart}, "charts", data, options);
-    }
-
-//this function should exit somewhere!
+    //this function should exist somewhere!
     function string_limit(string str, int lim) {
         lim = max(2, lim)
         if (String.length(str) > lim-2) {
