@@ -6,32 +6,32 @@ import stdlib.tools.gcharts
 WB = WBootstrap
 GC = GCharts
 
-type View.login = { string logged} or { unlogged }
+type ViewLib.login = { string logged} or { unlogged }
 
-type View.path = string // current folder path-key (lowercase, begins with "/")
+type ViewLib.path = string // current folder path-key (lowercase, begins with "/")
 
-type View.content = { xhtml welcome } or { xhtml error } or { View.path folder }
+type ViewLib.content = { xhtml welcome } or { xhtml error } or { ViewLib.path folder }
 
-type View.data = map(View.path, View.folder_info)
+type ViewLib.data = map(ViewLib.path, ViewLib.folder_info)
 
-type View.element = Dropbox.element
+type ViewLib.element = Dropbox.element
 
-type View.folder_info = {
+type ViewLib.folder_info = {
     int counter
 //    list(string) full_path,
-//    list(View.element) content,
+//    list(ViewLib.element) content,
     // ...
 }
 
 // for some unknown reason Opa runtime fails if these reference are in the module below
-    client reference(View.login) login = ClientReference.create( {unlogged} )
+    client reference(ViewLib.login) login = ClientReference.create( {unlogged} )
 
-    client reference(View.content) content = ClientReference.create( {welcome : <></>} )
+    client reference(ViewLib.content) content = ClientReference.create( {welcome : <></>} )
 
-    client reference(View.data) data = ClientReference.create(Map.empty)
+    client reference(ViewLib.data) data = ClientReference.create(Map.empty)
 
 
-module View {
+module ViewLib {
     
     // server -> client synchro
     @async client function set_login(value) {
@@ -55,8 +55,18 @@ module View {
 
     // rendering functions
     function render_login() {
-       // ...
-        void
+        html =
+            match(ClientReference.get(login)){
+            case {unlogged}:
+                WB.Button.make({button:<>Sign in</>, callback:function(_){ServerLib.sign_in()}}, [{primary}])
+            case {logged: name}:
+                WB.Navigation.nav([
+                    {custom_li: WB.Navigation.dropdown_li(<>{name}</>, none, [
+                        {inactive:<>Log out</>, href:some("#"), onclick:{function(_){ServerLib.log_out()}}}
+                    ])}
+                ], false)
+            }
+        #login = html
     }
 
     function render_content() {
@@ -64,7 +74,7 @@ module View {
         case {folder: path}:
             m = ClientReference.get(data)
             if (Map.mem(path, m) == false) {
-                Log.info("View", "missing data for path {path}: requesting server");
+                Log.info("ViewLib", "missing data for path {path}: requesting server");
                 ServerLib.push_data(path)
             } else {
                 match (Map.get(path, m)) {

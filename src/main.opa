@@ -55,7 +55,7 @@ case "/dropbox/connect?" raw_token=(.*) : process_dropbox_token(Text.to_string(r
 //case "/favicon.ico": **TODO**
 case "/admin": admin_page()
 case "/user" : main_page()
-case "/" : Resource.html("Statbox", View.html());
+case "/" : Resource.html("Statbox", ViewLib.html());
 }
 
 Server.start(Server.http, [
