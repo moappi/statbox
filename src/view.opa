@@ -100,7 +100,10 @@ module ViewLib {
        #content =
         <div class="row" id="main">
             <div class="span6 offset3">{path_html(path, info.full_path)}</div>
-            <div class="span1"><a onclick={function(_){ ServerLib.refresh_content()} }><i class="icon-refresh"/></a></div>
+            <div class="span1">
+            <a onclick={function(_){ ServerLib.refresh_content()} }>
+               <img src="resources/refresh.png" alt="refresh" height="32" width="32" />
+            </a></div>
             <div class="span2">
             { total_size_html(info.total_size) }
             <span class="divider">/</span>
@@ -125,14 +128,26 @@ module ViewLib {
         </div>
     }
 
+//this function should exit somewhere!
+    function string_limit(string str, int lim) {
+        lim = max(2, lim)
+        if (String.length(str) > lim-2) {
+            String.sub(0, lim-2, str)^".."
+        } else str
+    }
+
     function path_html(path, full_path) {
-        Log.info("path_html", "{path} {OpaSerialize.to_string(full_path)}");
+//        Log.info("path_html", "{path} {OpaSerialize.to_string(full_path)}");
+
+        n = List.length(full_path);
+        m = if (n == 0) 50 else 100 / n;
+
         function label_html(~{label, path_key}) {
             hlabel =
                 if (label == "") {
                   <img src="resources/dropbox_logo.png" alt="Root" height="32" width="32" />
                 } else {
-                  <h3>{label}</h3>
+                  <h3>{string_limit(label, m)}</h3>
                 }
             ha =  <a href="#" onclick={function(_){ServerLib.move_to_path(path_key)}}>{hlabel}</a>
                   <+> <span class="divider">/</span>
