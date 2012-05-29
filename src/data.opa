@@ -131,9 +131,10 @@ function update_user_entries(int uid, Dropbox.delta delta) {
             
             Log.info("Data.update_user_entries", "Computing sizes of folders");
 
-            Session.send(daemon, { go });
+            // don't launch the daemon too early
+            if (delta.has_more == false) Session.send(daemon, { go });
 
-        } else {
+        } else { //rescue mode, may lead to temporarily incomplete stats
             Session.send(daemon, { go });
 
             Scheduler.sleep(10000, function (){Session.send(daemon, { ready: f })});
