@@ -36,9 +36,10 @@ module ServerLib {
         }
     }
 
-   @async exposed function log_out() {
+    @async exposed function log_out() {
         DropboxSession.set({disconnected});
         push_login()
+        push_content();
     }
 
     /* navigation */
@@ -47,8 +48,8 @@ module ServerLib {
         ViewLib.content x = 
             match (DropboxSession.get()) {
             case {~current_path ...}: {folder: current_path}
-            case {pending_request:_}: {error: <h2>An error occur during connection with Dropbox. Please sign in again or contact an administrator.</h2>}
-            case {disconnected}: {welcome: <h2>Welcome to <b>StatBox</b>. Sign in with your <a href="http://www.dropbox.com">Dropbox</a> account to see your file statistics.</h2>}
+            case {pending_request:_}: {error}
+            case {disconnected}: {welcome}
             }
         f(x)
     } //FIXME: move the sentences somewhere else
