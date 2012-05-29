@@ -47,7 +47,7 @@ module ServerLib {
     function read_content(f) {
         ViewLib.content x = 
             match (DropboxSession.get()) {
-            case {~current_path ...}: {folder: current_path}
+            case {~current_path, ~uid, credentials:_}: {folder: current_path, user_info:Data.get_user_info(uid).quota_info}
             case {pending_request:_}: {error}
             case {disconnected}: {welcome}
             }

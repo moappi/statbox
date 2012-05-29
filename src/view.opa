@@ -6,11 +6,13 @@ import stdlib.tools.gcharts
 WB = WBootstrap
 GC = GCharts
 
-type ViewLib.login = { string logged} or { unlogged }
+type ViewLib.login = { string logged } or { unlogged }
 
 type ViewLib.path = string // current folder path-key (lowercase, begins with "/")
 
-type ViewLib.content = { welcome } or { error } or { ViewLib.path folder }
+type ViewLib.user_info = Dropbox.quota_info
+
+type ViewLib.content = { welcome } or { error } or { ViewLib.path folder, ViewLib.user_info user_info }
 
 type ViewLib.data = map(ViewLib.path, ViewLib.folder_info)
 
@@ -48,7 +50,7 @@ module ViewLib {
         ClientReference.set(data, Map.add(path, value, ClientReference.get(data)));
 
         match(ClientReference.get(content)) {
-        case {folder: path2}: if (path == path2) render_content();
+        case {folder: path2 ...}: if (path == path2) render_content();
         default: void
         }
     }
@@ -77,7 +79,8 @@ module ViewLib {
     }
 
     function render_folder(path, info) {
-        <div class="span3" id="navigation">
+       #content =
+       <div class="span3" id="navigation">
           <div class="well sidebar-nav" id="navigation">
             <ul class="nav nav-list">
             <li class="nav-header">Sidebar</li>
@@ -104,7 +107,35 @@ module ViewLib {
         </div>
     }
 
-    function render_welcome() {
+    function human_readable_size(int bytes) {
+        if (bytes < 1024000) {
+            "{bytes / 1024} kb"
+        } else if (bytes < 1024000*1024) {
+            "{bytes / 1024000} mb"            
+        } else {
+            "{bytes / (1024000*1024)} gb"            
+        }
+    }
+
+    function human_readable_percentage(float x) { // FIXME ugly
+        "{(Float.to_int(x*100.))}.{Float.to_int(10.*(100.*x - Float.floor(100.*x)))}%"
+    }
+
+    function render_user_info(Dropbox.quota_info {~shared, ~normal, ~total}) {
+        s = Float.of_int(shared)
+        n = Float.of_int(normal)
+        t = Float.of_int(total)
+        ratio_used = (s + n) / t
+        ratio_shared = s / (s + n)
+        
+        #footer = <p>{human_readable_percentage(ratio_used)} used out of {human_readable_size(total)} available -- {human_readable_percentage(ratio_shared)} of shared files </p>
+    }
+
+    function default_footer_html() {
+        <p>&copy; Mathieu Baudet 2012 -- CSS styles and layout by Twitter Bootstrap</p>
+    }
+
+    function welcome_html() {
         <div class="hero-unit">
         <h1>Welcome to {application_name}</h1>
         <p>Sign in with your <a href="http://www.dropbox.com">Dropbox</a> account to see your file statistics.</p>
@@ -112,7 +143,7 @@ module ViewLib {
         </div>
     }
 
-    function render_error() {
+    function error_html() {
         <h1>Oups</h1>
         <p>An error occur during the connection with Dropbox. Please sign in again.</p>
         <p><a class="btn btn-primary btn-large" onclick={function(_){ServerLib.sign_in()}}>Sign in</a></p>
@@ -120,20 +151,27 @@ module ViewLib {
 
     function render_content() {
         match(ClientReference.get(content)) {
-        case {folder: path}:
+        case {folder: path, ~user_info}:
             m = ClientReference.get(data)
             if (Map.mem(path, m) == false) {
                 Log.info("ViewLib", "missing data for path {path}: requesting server");
                 ServerLib.push_data(path)
             } else {
                 match (Map.get(path, m)) {
-                case {some: info}: #content = render_folder(path, info)
+                case {some: info}:
+                    render_folder(path, info)
+                    render_user_info(user_info)
                 default: void
                 }
             }
-        case {welcome}: #content = render_welcome()
+        case {welcome}:
+            #content = welcome_html();
+            #footer = default_footer_html()
 
-        case {error}: #content = render_error()
+        case {error}:
+            #content = error_html()
+            #footer = default_footer_html()
+
         }
     }
 
@@ -149,11 +187,11 @@ module ViewLib {
     </div>
     <div class="container-fluid">
       <div class="row-fluid" id="content">
-            {render_welcome()}
+            {welcome_html()}
       </div>
       <hr>
-      <footer>
-            <p>&copy; Mathieu Baudet 2012 -- CSS styles and layout by Twitter Bootstrap</p>
+      <footer id="footer">
+            {default_footer_html()}
       </footer>
     </div>
     }
