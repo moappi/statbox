@@ -70,3 +70,6 @@ Server.start(Server.http, [
 
 // required for dropdown menus
 Resource.register_external_js("http://twitter.github.com/bootstrap/assets/js/bootstrap-dropdown.js")
+
+// required for Gcharts
+Resource.register_external_js("https://www.google.com/jsapi")

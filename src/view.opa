@@ -112,20 +112,45 @@ module ViewLib {
         </div>
 
        <div class="row-fluid">
-
        <div class="span3" id="navigation">
           <div class="sidebar-nav" id="navigation">
             <ul class="nav nav-list">
             <li class="nav-header">{"{path}"}</li>
-            {List.map(function({~label, ~path_key, ~total_size}){ <li><a href="#" onclick={function(_){ServerLib.move_to_path(path_key)}}>{label}</a> { total_size_html(total_size) } </li> }, info.subdirs)}
+            {List.map(
+                function( {~label, ~path_key, ~total_size}) {
+                  <li>
+                  <a href="#" onclick={function(_){ServerLib.move_to_path(path_key)}}>{label}</a>
+                  { total_size_html(total_size) }
+                  </li>
+                }, info.subdirs)
+            }
             </ul>
           </div>
-        </div>
-
-        <div class="span9" id="charts">
-        </div>
+          <div class="span9" id="charts">
+          </div>
 
         </div>
+        </div>
+
+        render_charts(info.subdirs)
+    }
+
+    function render_charts(subdirs) {
+        options = [ {title: "Space usage per sub-directory"},
+                    {width:400},
+                    {height:300},
+                  ];
+
+// TODO add an entry for files in ./
+        data = GCharts.DataTable.make_simple(
+            ("directory","size"),
+            List.fold(function(e, l){ match(e.total_size) {
+            case {none}: l
+            case {some: size}: List.cons((e.label, size), l)
+            }}, subdirs, [])
+        );
+        
+        GCharts.draw({pie_chart}, "charts", data, options);
     }
 
 //this function should exit somewhere!
@@ -140,14 +165,14 @@ module ViewLib {
 //        Log.info("path_html", "{path} {OpaSerialize.to_string(full_path)}");
 
         n = List.length(full_path);
-        m = if (n == 0) 50 else 100 / n;
+        m = if (n == 0) 50 else 80 / n;
 
         function label_html(~{label, path_key}) {
             hlabel =
                 if (label == "") {
                   <img src="resources/dropbox_logo.png" alt="Root" height="32" width="32" />
                 } else {
-                  <h3>{string_limit(label, m)}</h3>
+                  <span>{string_limit(label, m)}</span>
                 }
             ha =  <a href="#" onclick={function(_){ServerLib.move_to_path(path_key)}}>{hlabel}</a>
                   <+> <span class="divider">/</span>
@@ -188,7 +213,7 @@ module ViewLib {
     }
 
     function default_footer_html() {
-        <p>&copy; Mathieu Baudet 2012 -- CSS styles and layout by Twitter Bootstrap</p>
+        <p>&copy; Mathieu Baudet 2012 -- CSS styles and layout based on Twitter Bootstrap</p>
     }
 
     function welcome_html() {
