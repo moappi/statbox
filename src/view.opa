@@ -91,41 +91,35 @@ module ViewLib {
 // TODO prefetch data of subdirs?
     function render_folder(path, info) {
        #content =
-        <div class=span9 id="main">
-            <span class=span7>{path_html(path, info.full_path)}</span>
-            <i class=icon-refresh onclick={function(_){ ServerLib.refresh_content()} }/>
-            <span class=span2>{
+        <div class="row" id="main">
+            <div class="span6 offset3">{path_html(path, info.full_path)}</div>
+            <div class="span1"><i class="icon-refresh" onclick={function(_){ ServerLib.refresh_content()} }/></div>
+            <div class="span2">
+            {
                 match(info.total_size){
                 case {none}: "??"
                 case {some:size}: human_readable_size(size)
                 }
-            } <span class="divider">/</span> {info.counter} elements</span>
+            }
+            <span class="divider">/</span>
+            {info.counter} elements
+            </div>
         </div>
 
-       <div class=span9>
+       <div class="row-fluid">
 
        <div class="span3" id="navigation">
-          <div class="well sidebar-nav" id="navigation">
+          <div class="sidebar-nav" id="navigation">
             <ul class="nav nav-list">
-            <li class="nav-header">Sidebar</li>
-            <li class="active"><a href="#">Link</a></li>
-            <li><a href="#">Link</a></li>
-            <li><a href="#">Link</a></li>
-            <li><a href="#">Link</a></li>
-            <li class="nav-header">Sidebar</li>
-            <li><a href="#">Link</a></li>
-            <li><a href="#">Link</a></li>
-            <li><a href="#">Link</a></li>
-            <li><a href="#">Link</a></li>
-            <li><a href="#">Link</a></li>
-            <li><a href="#">Link</a></li>
-            <li class="nav-header">Sidebar</li>
-            <li><a href="#">Link</a></li>
-            <li><a href="#">Link</a></li>
-            <li><a href="#">Link</a></li>
+            <li class="nav-header">{"/{path}"}</li>
+            {List.map(function({~label, ~path_key, ~total_size}){ <li><a href="#" onclick={function(_){ServerLib.move_to_path(path_key)}}>{label}</a> {match(total_size) {case {some:size}: human_readable_size(size) default: ""}} </li> }, info.subdirs)}
             </ul>
           </div>
         </div>
+
+        <div class="span9" id="charts">
+        </div>
+
         </div>
     }
 
@@ -134,7 +128,7 @@ module ViewLib {
         function label_html(~{label, path_key}) {
             hlabel =
                 if (label == "") {
-                  <img src="resources/dropbox_logo.png" alt="Root" height="48" width="48" />
+                  <img src="resources/dropbox_logo.png" alt="Root" height="32" width="32" />
                 } else {
                   <h3>{label}</h3>
                 }
