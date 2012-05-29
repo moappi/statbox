@@ -82,7 +82,7 @@ type Dropbox.common_metadata = {
   bytes        : int
   size         : string
   modified     : option(Date.date)
-  path         : string
+  path         : string // not lowercased
   icon         : string
   root         : string
   is_deleted   : bool

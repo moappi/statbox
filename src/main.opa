@@ -67,3 +67,6 @@ Server.start(Server.http, [
     { register: {css : ["resources/statbox.css"] }},
     { custom : dispatcher }
 ])
+
+// required for dropdown menus
+Resource.register_external_js("http://twitter.github.com/bootstrap/assets/js/bootstrap-dropdown.js")

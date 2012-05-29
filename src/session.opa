@@ -9,7 +9,7 @@ or {Dropbox.credentials credentials, int uid, string current_path} //authenticat
 
 protected UserContext.t(DropboxSession.status) context = UserContext.make({disconnected})
 
-// Mathieu: TODO: save credentials in DB and deal with expiration via error codes
+// Mathieu: TODO: deal with expiration of credentials via error codes
 module DropboxSession {
 
     private D = Dropbox(dropbox_config)   // nobody should call Dropbox REST APIs outside this module

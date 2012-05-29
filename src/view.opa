@@ -6,6 +6,8 @@ import stdlib.tools.gcharts
 WB = WBootstrap
 GC = GCharts
 
+/* "Model" to be rendered by ViewLib */
+
 type ViewLib.login = { string logged } or { unlogged }
 
 type ViewLib.path = string // current folder path-key (lowercase, begins with "/")
@@ -18,38 +20,42 @@ type ViewLib.data = map(ViewLib.path, ViewLib.folder_info)
 
 type ViewLib.element = Dropbox.element
 
+type ViewLib.path_element = { string label, string path_key }
+
+type ViewLib.subdir_element = { string label, string path_key, option(int) total_size}
+
 type ViewLib.folder_info = {
-    int counter
-//    list(string) full_path,
-//    list(ViewLib.element) content,
-    // ...
+    int counter,
+    option(int) total_size,
+    list(ViewLib.path_element) full_path,
+    list(ViewLib.subdir_element) subdirs    
 }
 
-// for some unknown reason Opa runtime fails if these reference are in the module below
-    client reference(ViewLib.login) login = ClientReference.create( {unlogged} )
+// for some unknown reason, the Opa runtime fails if these reference are in the module below
+    client reference(ViewLib.login) viewlib_login = ClientReference.create( {unlogged} )
 
-    client reference(ViewLib.content) content = ClientReference.create( {welcome} )
+    client reference(ViewLib.content) viewlib_content = ClientReference.create( {welcome} )
 
-    client reference(ViewLib.data) data = ClientReference.create(Map.empty)
+    client reference(ViewLib.data) viewlib_data = ClientReference.create(Map.empty)
 
 
 module ViewLib {
     
     // server -> client synchro
     @async client function set_login(value) {
-        ClientReference.set(login, value)
+        ClientReference.set(viewlib_login, value)
         render_login();
     }
 
     @async client function set_content(value) {
-        ClientReference.set(content, value)
+        ClientReference.set(viewlib_content, value)
         render_content();
     }
 
     @async client function set_data(path, value) {
-        ClientReference.set(data, Map.add(path, value, ClientReference.get(data)));
+        ClientReference.set(viewlib_data, Map.add(path, value, ClientReference.get(viewlib_data)));
 
-        match(ClientReference.get(content)) {
+        match(ClientReference.get(viewlib_content)) {
         case {folder: path2 ...}: if (path == path2) render_content();
         default: void
         }
@@ -58,7 +64,7 @@ module ViewLib {
     // rendering functions
     function render_login() {
         html =
-            match(ClientReference.get(login)){
+            match(ClientReference.get(viewlib_login)){
             case {unlogged}:
                 WB.Button.make({button:<>Sign in</>, callback:function(_){ServerLib.sign_in()}}, [{primary}])
             case {logged: name}:
@@ -78,6 +84,7 @@ module ViewLib {
         #login = html
     }
 
+// TODO prefetch data of subdirs?
     function render_folder(path, info) {
        #content =
        <div class="span3" id="navigation">
@@ -107,18 +114,32 @@ module ViewLib {
         </div>
     }
 
+    function path_html(path) {
+//TODO
+      <ul class="breadcrumb">
+      <li>
+         <a href="#">Home</a> <span class="divider">/</span>
+      </li>
+      <li>
+         <a href="#">Library</a> <span class="divider">/</span>
+       </li>
+      <li class="active">Data</li>
+      </ul>
+    }
+
+
     function human_readable_size(int bytes) {
         if (bytes < 1024000) {
-            "{bytes / 1024} kb"
+            "{bytes / 1024} Kb"
         } else if (bytes < 1024000*1024) {
-            "{bytes / 1024000} mb"            
+            "{bytes / 1024000} Mb"            
         } else {
-            "{bytes / (1024000*1024)} gb"            
+            "{bytes / (1024000*1024)} Gb"            
         }
     }
 
     function human_readable_percentage(float x) { // FIXME ugly
-        "{(Float.to_int(x*100.))}.{Float.to_int(10.*(100.*x - Float.floor(100.*x)))}%"
+        "{(Float.to_int(x*100.))}.{Float.to_int(10.*(100.*x - Float.floor(100.*x)))} %"
     }
 
     function render_user_info(Dropbox.quota_info {~shared, ~normal, ~total}) {
@@ -127,8 +148,9 @@ module ViewLib {
         t = Float.of_int(total)
         ratio_used = (s + n) / t
         ratio_shared = s / (s + n)
-        
-        #footer = <p>{human_readable_percentage(ratio_used)} used out of {human_readable_size(total)} available -- {human_readable_percentage(ratio_shared)} of shared files </p>
+
+        // TODO: on-mouseover % => real size 
+        #footer = <p>You are using {human_readable_percentage(ratio_used)} of the {human_readable_size(total)} of available, {human_readable_percentage(ratio_shared)} of your files are shared. </p>
     }
 
     function default_footer_html() {
@@ -150,9 +172,9 @@ module ViewLib {
     }
 
     function render_content() {
-        match(ClientReference.get(content)) {
+        match(ClientReference.get(viewlib_content)) {
         case {folder: path, ~user_info}:
-            m = ClientReference.get(data)
+            m = ClientReference.get(viewlib_data)
             if (Map.mem(path, m) == false) {
                 Log.info("ViewLib", "missing data for path {path}: requesting server");
                 ServerLib.push_data(path)
@@ -190,12 +212,9 @@ module ViewLib {
             {welcome_html()}
       </div>
       <hr>
-      <footer id="footer">
+      <footer class="footer" id="footer">
             {default_footer_html()}
       </footer>
     </div>
     }
 }
-
-
-Resource.register_external_js("http://twitter.github.com/bootstrap/assets/js/bootstrap-dropdown.js")

@@ -20,7 +20,7 @@ custom.stdlib.apis.dropbox.opx: $(LIBDIR)/dropbox.opa
 	opa -c --parser classic $^
 
 clean::
-	rm -rf _build _tracks .opx/* $(LIBS) statbox
+	rm -rf _build _tracks .opx/* $(LIBS) $(LIBS:.opx=.opx.broken) statbox
 
 ## hackish deployment scripts: use with care
 DBPATH=$(HOME)/var/mongodb

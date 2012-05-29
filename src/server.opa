@@ -13,9 +13,6 @@ module ServerLib {
         }
     }
 
-    // Note:
-    // server and exposed are basically equivalent in creating an entry point
-    // server additionnally forbids the client to a version on his side
     @async exposed function push_login(){
         read_login(ViewLib.set_login(_));  //async push
     }
@@ -62,7 +59,11 @@ module ServerLib {
         match (DropboxSession.get_uid()) {
         case {some:uid}:
             ViewLib.folder_info info =
-                {counter: Analytics.count_folder_entries(uid, path)}
+                {counter: Analytics.count_folder_entries(uid, path),
+                 total_size: Analytics.get_folder_total_size(uid, path),
+                 full_path: Analytics.get_folder_full_path(uid, path),
+                 subdirs: Analytics.list_folder_subdirs(uid, path),                 
+                }
             f(info)
         default: void
         }
@@ -77,7 +78,7 @@ module ServerLib {
         case {~uid, ~credentials, current_path:_}: DropboxSession.set({~uid, ~credentials, current_path: path})
         default: void
         }
-        read_data(path, ViewLib.set_data(path, _)); // N.B. we don't user push... to ensure that get_data is computed before the last call
+        read_data(path, ViewLib.set_data(path, _)); // N.B. we don't use push_data to ensure that get_data is computed before the last call
         push_content()
     }
 
