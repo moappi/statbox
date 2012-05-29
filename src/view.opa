@@ -23,6 +23,7 @@ type View.folder_info = {
     // ...
 }
 
+// for some unknown reason Opa runtime fails if these reference are in the module below
     client reference(View.login) login = ClientReference.create( {unlogged} )
 
     client reference(View.content) content = ClientReference.create( {welcome : <></>} )

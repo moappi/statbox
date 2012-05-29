@@ -54,7 +54,8 @@ dispatcher = parser {
 case "/dropbox/connect?" raw_token=(.*) : process_dropbox_token(Text.to_string(raw_token), "/")
 //case "/favicon.ico": **TODO**
 case "/admin": admin_page()
-case "/" : main_page()
+case "/user" : main_page()
+case "/" : Resource.html("Statbox", View.html());
 }
 
 Server.start(Server.http, [
