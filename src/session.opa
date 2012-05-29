@@ -83,7 +83,7 @@ module DropboxSession {
         match (D.Account.info(credentials)) {
         case {success:info}:
             Data.update_user_info(info);
-            set({~credentials, uid:info.uid, current_path:"/"});
+            set({~credentials, uid:info.uid, current_path:Data.root_path});
             process_delta_entries(info.uid, credentials, 0)
         default: // BUG of the API client: we don't fail on error codes != 200
             set({disconnected});

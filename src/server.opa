@@ -44,15 +44,28 @@ module ServerLib {
     function read_content(f) {
         ViewLib.content x = 
             match (DropboxSession.get()) {
-            case {~current_path, ~uid, credentials:_}: {folder: current_path, user_info:Data.get_user_info(uid).quota_info}
+            case {~current_path, ~uid, credentials:_}:
+                path =
+                    if (?/entries/all[{path:current_path, ~uid}] != {none}) current_path
+                    else "/"
+                {folder: path, user_info:Data.get_user_info(uid).quota_info}
             case {pending_request:_}: {error}
             case {disconnected}: {welcome}
             }
         f(x)
-    } //FIXME: move the sentences somewhere else
+    }
 
     @async exposed function push_content(){
         read_content(ViewLib.set_content(_));
+    }
+
+    @async exposed function refresh_content(){
+        match (DropboxSession.refresh_user_entries()) {
+        case {success}:
+            ViewLib.flush_data();
+            push_content()
+        default: Log.error("ServerLib.refresh_content", "failed")
+        }
     }
 
     function read_data(path, f) {

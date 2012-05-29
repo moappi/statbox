@@ -43,6 +43,8 @@ database entries @mongo {
 
 module Data {
 
+root_path = ""
+
 function update_user_info(Dropbox.info info) { 
         /users/all[{uid: info.uid}]/last_info = info
 }
@@ -75,8 +77,8 @@ function schedule_size_computation(int uid, string pathkey) {
 
 function is_folder(Dropbox.element element) {
     match(element) {
-    case {kind:{folder:_} ...}: false
-    default: true
+    case {kind:{folder:_} ...}: true
+    case {kind:{file:_} ...}: false
     }
 }
 
@@ -87,19 +89,27 @@ function process_delta_entry(int uid, Dropbox.delta_entry de) {
     match(de.metadata) {
     case {some: element}:
         Log.info("Data.process_delta_entry", "Writing entry {uid}:{de.path} = {OpaSerialize.to_string({~uid, ~path, ~element})}");
+        parent = PathTool.compute_parent(path);
         size =
-            if (is_folder(element)) {{none}}
-            else {{some: element.metadata.bytes}}; // size of files is known
-        new_element = {~uid, ~path, ~element, parent:PathTool.compute_parent(path), total_size:size}
+            if (is_folder(element)) {
+                schedule_size_computation(uid, path);
+                {none}
+            } else { // sizes of files are known
+                match(parent) {
+                case {some:p}: schedule_size_computation(uid, p);
+                default: void
+                };
+                {some: element.metadata.bytes}
+            };
+        new_element = {~uid, ~path, ~element, ~parent, total_size:size};
         Db.write(dbpath, new_element)
-        schedule_size_computation(uid, path);
     case default:
-        Db.remove(dbpath)
         match(PathTool.compute_parent(path)) {
         case {none}: void
         case {some: parent}: schedule_size_computation(uid, parent)
         };
         Log.info("Data.process_delta_entry", "Removing entry {uid}:{de.path}");
+        Db.remove(dbpath)
     }
 }
 
@@ -144,9 +154,9 @@ module SizeDaemons {
     private function update_size(int uid, stringset todo_set, string path) {
         function f(size, entry) {
             if (Data.is_folder(entry.element))
-                size + entry.element.metadata.bytes
-            else
                 size + update_size(uid, todo_set, entry.path)
+            else
+                size + entry.element.metadata.bytes
         }
 
         if (StringSet.mem(path, todo_set) || (/entries/all[{~uid, ~path}]/total_size == {none})) {
@@ -175,7 +185,7 @@ module SizeDaemons {
                 todo_set = List.fold(function (path, set) {
                     PathTool.fold_parents(function (p, s){ StringSet.add(p, s) }, path, set)
                 }, state, StringSet.empty);
-                _ = update_size(uid, todo_set, "/");
+                _ = update_size(uid, todo_set, Data.root_path);
                 {set : []}
             }
         }
@@ -258,7 +268,8 @@ function list_folder_subdirs(uid, path) {
 
 }
 
-//FIXME: these functions assume some normalization like "foo//bar" -> "foo/bar"
+//FIXME: these functions assume some normalization like "foo//bar/" -> "/foo/bar"
+//Otherwise a path ending with "/foo/" will be cut into ["", foo, ""] 
 module PathTool {
 
 function find_slash_backward(int n, string path) { // n must be < String.length(path)
@@ -272,23 +283,25 @@ function find_slash_backward(int n, string path) { // n must be < String.length(
 
 function compute_parent(string path) {
     n = String.length(path)
-    i = find_slash_backward(n-2, path); //skip 1 trailing "/" if any
-    if (i < 0) {
+    i = find_slash_backward(n-1, path);
+    res = if (i < 0) {
         {none}
     } else {
-        String.get_prefix(i+1, path)
+        String.get_prefix(i, path) // drop the "/" seen as well
     }
+    Log.info("PathTool.compute_parent", "'{path}' ==> '{res}'");
+    res
 }
 
 function compute_filename(string path) {
     n = String.length(path)
-    i = find_slash_backward(n-2, path); //skip 1 trailing "/" if any
-    if (i < 0) {
-        Log.error("PathTool.compute_filename", "Path contains no slash");
-        path // N.B. will map "/" to "/"
-    } else {
-        String.sub(n-i-2, n-1, path) // drop the first "/"
-    }
+    i = find_slash_backward(n-1, path);
+    res = if (i < 0)
+        path
+    else
+        String.sub(i+1, n-1, path) // drop the "/" found
+    Log.info("PathTool.compute_filename", "'{path}' ==> '{res}'");
+    res
 }
 
 function fold_parents(f, path, map) {

@@ -10,7 +10,7 @@ GC = GCharts
 
 type ViewLib.login = { string logged } or { unlogged }
 
-type ViewLib.path = string // current folder path-key (lowercase, begins with "/")
+type ViewLib.path = string // current folder path-key (lowercase, begins with "/" except for root_path="")
 
 type ViewLib.user_info = Dropbox.quota_info
 
@@ -61,6 +61,10 @@ module ViewLib {
         }
     }
 
+    @async client function flush_data() {
+        ClientReference.set(viewlib_data, Map.empty);
+    }
+
     // rendering functions
     function render_login() {
         html =
@@ -87,6 +91,19 @@ module ViewLib {
 // TODO prefetch data of subdirs?
     function render_folder(path, info) {
        #content =
+        <div class=span9 id="main">
+            <span class=span7>{path_html(path, info.full_path)}</span>
+            <i class=icon-refresh onclick={function(_){ ServerLib.refresh_content()} }/>
+            <span class=span2>{
+                match(info.total_size){
+                case {none}: "??"
+                case {some:size}: human_readable_size(size)
+                }
+            } <span class="divider">/</span> {info.counter} elements</span>
+        </div>
+
+       <div class=span9>
+
        <div class="span3" id="navigation">
           <div class="well sidebar-nav" id="navigation">
             <ul class="nav nav-list">
@@ -109,32 +126,38 @@ module ViewLib {
             </ul>
           </div>
         </div>
-        <div class=span9 id="main">
-          <h2>Folder {path} has {info.counter} files</h2>
         </div>
     }
 
-    function path_html(path) {
-//TODO
-      <ul class="breadcrumb">
-      <li>
-         <a href="#">Home</a> <span class="divider">/</span>
-      </li>
-      <li>
-         <a href="#">Library</a> <span class="divider">/</span>
-       </li>
-      <li class="active">Data</li>
-      </ul>
+    function path_html(path, full_path) {
+        Log.info("path_html", "{path} {OpaSerialize.to_string(full_path)}");
+        function label_html(~{label, path_key}) {
+            hlabel =
+                if (label == "") {
+                  <img src="resources/dropbox_logo.png" alt="Root" height="48" width="48" />
+                } else {
+                  <h3>{label}</h3>
+                }
+            ha =  <a href="#" onclick={function(_){ServerLib.move_to_path(path_key)}}>{hlabel}</a>
+                  <+> <span class="divider">/</span>
+            if (path_key == path) { // last one?
+                  <li class="active">{ha}</li>
+            } else {
+                  <li>{ha}</li>
+            }
+        }
+
+        <ul class="breadcrumb">{List.map(label_html, full_path)}</ul>
     }
 
 
     function human_readable_size(int bytes) {
-        if (bytes < 1024000) {
+        if (bytes < 1024*1000) {
             "{bytes / 1024} Kb"
-        } else if (bytes < 1024000*1024) {
-            "{bytes / 1024000} Mb"            
+        } else if (bytes < 1024*1024*1000) {
+            "{bytes / (1024*1024)} Mb"            
         } else {
-            "{bytes / (1024000*1024)} Gb"            
+            "{bytes / (1024*1024*1024)} Gb"            
         }
     }
 
@@ -150,6 +173,7 @@ module ViewLib {
         ratio_shared = s / (s + n)
 
         // TODO: on-mouseover % => real size 
+        // Or progress bar: <div class="progress"> <div class="bar" style="width: 60%;"></div></div>
         #footer = <p>You are using {human_readable_percentage(ratio_used)} of the {human_readable_size(total)} of available, {human_readable_percentage(ratio_shared)} of your files are shared. </p>
     }
 
@@ -166,9 +190,11 @@ module ViewLib {
     }
 
     function error_html() {
+      <div class="alert alert-error">
         <h1>Oups</h1>
         <p>An error occur during the connection with Dropbox. Please sign in again.</p>
         <p><a class="btn btn-primary btn-large" onclick={function(_){ServerLib.sign_in()}}>Sign in</a></p>
+      </div>
     }
 
     function render_content() {
