@@ -88,6 +88,13 @@ module ViewLib {
         #login = html
     }
 
+    function total_size_html(total_size) {
+        match(total_size){
+        case {none}: <p>??</p>
+        case {some:size}: human_readable_size(size)
+        }
+    }
+
 // TODO prefetch data of subdirs?
     function render_folder(path, info) {
        #content =
@@ -95,12 +102,7 @@ module ViewLib {
             <div class="span6 offset3">{path_html(path, info.full_path)}</div>
             <div class="span1"><i class="icon-refresh" onclick={function(_){ ServerLib.refresh_content()} }/></div>
             <div class="span2">
-            {
-                match(info.total_size){
-                case {none}: "??"
-                case {some:size}: human_readable_size(size)
-                }
-            }
+            { total_size_html(info.total_size) }
             <span class="divider">/</span>
             {info.counter} elements
             </div>
@@ -112,7 +114,7 @@ module ViewLib {
           <div class="sidebar-nav" id="navigation">
             <ul class="nav nav-list">
             <li class="nav-header">{"/{path}"}</li>
-            {List.map(function({~label, ~path_key, ~total_size}){ <li><a href="#" onclick={function(_){ServerLib.move_to_path(path_key)}}>{label}</a> {match(total_size) {case {some:size}: human_readable_size(size) default: ""}} </li> }, info.subdirs)}
+            {List.map(function({~label, ~path_key, ~total_size}){ <li><a href="#" onclick={function(_){ServerLib.move_to_path(path_key)}}>{label}</a> { total_size_html(total_size) } </li> }, info.subdirs)}
             </ul>
           </div>
         </div>
@@ -145,13 +147,13 @@ module ViewLib {
     }
 
 
-    function human_readable_size(int bytes) {
-        if (bytes < 1024*1000) {
-            "{bytes / 1024} Kb"
-        } else if (bytes < 1024*1024*1000) {
-            "{bytes / (1024*1024)} Mb"            
+    function human_readable_size(int bytes) { //TODO first digit
+        if (bytes < 1000000) {
+                <span title="{bytes} bytes">{bytes / 1000} kB</span>
+        } else if (bytes < 1000000000) {
+                <span title="{bytes} bytes">{bytes / 1000000} mB</span>
         } else {
-            "{bytes / (1024*1024*1024)} Gb"            
+                <span title="{bytes} bytes">{bytes / 1000000000} gB</span>            
         }
     }
 
@@ -168,7 +170,7 @@ module ViewLib {
 
         // TODO: on-mouseover % => real size 
         // Or progress bar: <div class="progress"> <div class="bar" style="width: 60%;"></div></div>
-        #footer = <p>You are using {human_readable_percentage(ratio_used)} of the {human_readable_size(total)} of available, {human_readable_percentage(ratio_shared)} of your files are shared. </p>
+        #footer = <p>You are using {human_readable_percentage(ratio_used)} of the {human_readable_size(total)} of space available; {human_readable_percentage(ratio_shared)} of your files are shared. </p>
     }
 
     function default_footer_html() {
