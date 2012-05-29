@@ -100,7 +100,7 @@ module ViewLib {
        #content =
         <div class="row" id="main">
             <div class="span6 offset3">{path_html(path, info.full_path)}</div>
-            <div class="span1"><i class="icon-refresh" onclick={function(_){ ServerLib.refresh_content()} }/></div>
+            <div class="span1"><a onclick={function(_){ ServerLib.refresh_content()} }><i class="icon-refresh"/></a></div>
             <div class="span2">
             { total_size_html(info.total_size) }
             <span class="divider">/</span>
@@ -113,7 +113,7 @@ module ViewLib {
        <div class="span3" id="navigation">
           <div class="sidebar-nav" id="navigation">
             <ul class="nav nav-list">
-            <li class="nav-header">{"/{path}"}</li>
+            <li class="nav-header">{"{path}"}</li>
             {List.map(function({~label, ~path_key, ~total_size}){ <li><a href="#" onclick={function(_){ServerLib.move_to_path(path_key)}}>{label}</a> { total_size_html(total_size) } </li> }, info.subdirs)}
             </ul>
           </div>
@@ -146,8 +146,7 @@ module ViewLib {
         <ul class="breadcrumb">{List.map(label_html, full_path)}</ul>
     }
 
-
-    function human_readable_size(int bytes) { //TODO first digit
+    function human_readable_size(int bytes) { //TODO first decimal digit
         if (bytes < 1000000) {
                 <span title="{bytes} bytes">{bytes / 1000} kB</span>
         } else if (bytes < 1000000000) {

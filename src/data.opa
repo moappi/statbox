@@ -83,7 +83,7 @@ function is_folder(Dropbox.element element) {
 }
 
 function process_delta_entry(int uid, Dropbox.delta_entry de) {
-    Log.info("Data.process_delta_entry", "Processing delta entry: {de.path}");
+//    Log.info("Data.process_delta_entry", "Processing delta entry: {de.path}");
     path = de.path
     dbpath = @/entries/all[{~uid, ~path}]
     match(de.metadata) {
@@ -177,7 +177,7 @@ module SizeDaemons {
     private function make_daemon(int uid) {
         function on_message(list(string) state, SD.msg mess) {
             match (mess) {
-            case {schedule_path: path}: { set: List.cons(path, state)}
+            case {schedule_path: path}: {set: List.cons(path, state)}
             case {ready: f}:
                 f((state == []));
                 {unchanged}
@@ -289,7 +289,7 @@ function compute_parent(string path) {
     } else {
         String.get_prefix(i, path) // drop the "/" seen as well
     }
-    Log.info("PathTool.compute_parent", "'{path}' ==> '{res}'");
+//    Log.info("PathTool.compute_parent", "'{path}' ==> '{res}'");
     res
 }
 
@@ -300,7 +300,7 @@ function compute_filename(string path) {
         path
     else
         String.sub(i+1, n-1-i, path) // drop the "/" found
-    Log.info("PathTool.compute_filename", "'{path}' ==> '{res}'");
+//    Log.info("PathTool.compute_filename", "'{path}' ==> '{res}'");
     res
 }
 
