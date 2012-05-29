@@ -96,57 +96,63 @@ module ViewLib {
         }
     }
 
-    function subdir_html({~label, ~path_key, ~total_size}, int limit) {
-            <span><a href="#" onclick={function(_){ServerLib.move_to_path(path_key)}}>{string_limit(label, limit)}</a> {size_opt_html(total_size)}</span>
-    }
 
 // TODO prefetch data of subdirs?
     function render_folder(string path, ViewLib.folder_info info) {
-      /* navigation */
-      #content =
-        <div class="row" id="pathnav">
-          <div class="span6 offset3">{path_html(path, info.full_path)}</div>
-          <div class="span1">
-            <a onclick={function(_){ ServerLib.refresh_content()} }>
-              <img src="resources/refresh.png" alt="refresh" height="32" width="32" />
-            </a>
-          </div>
-          <div class="span2">
-            { size_opt_html(info.total_size) }
-            <span class="divider">/</span>
-            {info.counter} elements
-          </div>
-        </div>
 
-       <div class="row">
-          <div class="well span3" id="navigation">
-            <div class="sidebar-nav" id="navigation">
-              <ul class="nav nav-list">
-              <li class="nav-header">{"{path}"}</li>
-              {List.map(function(sd){<li>{subdir_html(sd, 20)}</li>}, info.subdirs)}
-              </ul>
-            </div>
+        function subdir_html({~label, ~path_key, ~total_size}) {
+             <tr>
+                <td><a href="#" onclick={function(_){ServerLib.move_to_path(path_key)}}>
+                  {string_limit(label, 45)}</a></td>
+                <td class="pull-right">{size_opt_html(total_size)}</td>
+            </tr>
+        }
+
+        current_path = "(files in current dir.)"
+
+        // reverse order, unknown size last
+        function compare_subdir({~total_size ...}) {
+            match (total_size) {
+            case {some:s}: (-s)
+            case {none}: 1
+            }
+        }
+
+        /* navigation */
+        #content =
+          <div class="row" id="pathnav">
+            <div class="span12">{path_html(path, info.full_path)}</div>
           </div>
-          <div class="span9" id="charts">
+
+          <div class="row">
+          <div class="well span5" id="navigation">
+            <table class="table">
+            {List.map(function(sd){subdir_html(sd)}, List.sort_by(compare_subdir, info.subdirs))}
+              {subdir_html({label:current_path, path_key:path, total_size:{some: info.dotslash_size}})}
+            <tr><td><h4>{info.counter} elements</h4></td>
+            <td class="pull-right"><h4>{size_opt_html(info.total_size)}</h4></td></tr>
+            </table>
           </div>
-        </div>
+          <div class="span5" id="charts">
+          </div>
+          </div>
 
-      /* Charts */    
-      options = [ {title: "Space usage per sub-directory"},
-                  {width:400},
-                  {height:400},
-                ];
+        /* Charts */    
+        options = [ {title: "Space usage per sub-directory"},
+                    {width:450},
+                    {height:400},
+                  ];
 
-      data = GCharts.DataTable.make_simple(
-          ("directory","size"),
-          List.cons(("(current dir)", info.dotslash_size),
-                    List.fold(function(e, l){ match(e.total_size) {
-                    case {none}: l
-                    case {some: size}: List.cons((e.label, size), l)
-                    }}, info.subdirs, [])
-                   ));
-
-      GCharts.draw({pie_chart}, "charts", data, options);
+        data = GCharts.DataTable.make_simple(
+            ("directory","size"),
+            List.cons((current_path, info.dotslash_size),
+                      List.fold(function(e, l){ match(e.total_size) {
+                      case {none}: l
+                      case {some: size}: List.cons((e.label, size), l)
+                      }}, info.subdirs, [])
+                     ));
+        
+        GCharts.draw({pie_chart}, "charts", data, options);
     }
 
     //this function should exist somewhere!
@@ -179,7 +185,14 @@ module ViewLib {
             }
         }
 
-        <ul class="breadcrumb">{List.map(label_html, full_path)}</ul>
+        <ul class="breadcrumb">
+            {List.map(label_html, full_path)}
+            <li class="pull-right">
+            <a onclick={function(_){ ServerLib.refresh_content()} }>
+            <img src="resources/refresh.png" alt="refresh" height="32" width="32" />
+            </a>
+            </li>
+        </ul>
     }
 
     function human_readable_size(int bytes) { //TODO first decimal digit
@@ -205,7 +218,7 @@ module ViewLib {
 
         // TODO: on-mouseover % => real size 
         // Or progress bar: <div class="progress"> <div class="bar" style="width: 60%;"></div></div>
-        #footer = <p>You are using {human_readable_percentage(ratio_used)} of the {human_readable_size(total)} of space available; {human_readable_percentage(ratio_shared)} of your files are shared. </p>
+        #footer = <p>You are using <b>{human_readable_percentage(ratio_used)}</b> of the <b>{human_readable_size(total)}</b> of space available. <b>{human_readable_percentage(ratio_shared)}</b> of your files are shared. </p>
     }
 
     function default_footer_html() {
@@ -258,14 +271,14 @@ module ViewLib {
     function html() {
     <div class="navbar navbar-fixed-top" id="view" onready={function(_){ServerLib.push_login(); ServerLib.push_content()}}>
       <div class="navbar-inner">
-        <div class="container-fluid">
+        <div class="container">
           <a class="brand" href="#">{application_name}</a>
           <span id="login" class="pull-right"/>
         </div>
       </div>
     </div>
-    <div class="container-fluid">
-      <div class="row-fluid" id="content">
+    <div class="container">
+      <div class="row" id="content">
             {welcome_html()}
       </div>
       <hr>
