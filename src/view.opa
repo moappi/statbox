@@ -230,6 +230,7 @@ module ViewLib {
         <h1>Welcome to {application_name}</h1>
         <p>Sign in with your <a href="http://www.dropbox.com">Dropbox</a> account to see your file statistics.</p>
         <p><a class="btn btn-primary btn-large" onclick={function(_){ServerLib.sign_in()}}>Sign in</a></p>
+            <img src="resources/screenshot5.png" alt="screenshot" hspace="20%">
         </div>
     }
 
