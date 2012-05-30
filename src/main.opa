@@ -1,34 +1,7 @@
 
-/*
-function error_page(html) {
-    Resource.html("Error", <h1>{html}</h1>);
-}
+/* --- (read-only) admin page for debug --- */
 
-function go_to_dropbox_login_page() {
-    match (DropboxSession.login_url()) {
-    case {success: url}: Resource.default_redirection_page(url)
-    case {~error}: error_page(error)
-    }
-}
-
-function main_page() {
-    match (DropboxSession.get_uid()) {
-    case {some: uid}:
-        dbset(Data.entry, _) entries = /entries/all[uid == uid];
-        info = /users/all[{~uid}]/last_info
-        html = <div>
-            <h2>Account informations</h2>
-            {OpaSerialize.to_string(info)}
-            <h2>Entries ({Analytics.count_user_entries(uid)})</h2>
-            {Iter.to_list(Iter.map(entry_html, DbSet.iterator(entries)))}
-        </div>;
-        Resource.html("Welcome {info.display_name}", html);
-    case {none}: go_to_dropbox_login_page()
-    }
-}
-*/
-
-/* --- admin page for debug --- */
+//TODO: move the 'secret' admin string below to 'config.opa'
 
 function user_html(Data.user u) {
     <tr><td>{OpaSerialize.to_string(u)}</td></tr>
@@ -58,7 +31,6 @@ dispatcher = parser {
 case "/dropbox/connect?" raw_token=(.*) : process_dropbox_token(Text.to_string(raw_token), "/")
 //case "/favicon.ico": **TODO**
 case "/admin13zxx5769": admin_page()
-//case "/user" : main_page()
 case "/" : Resource.html("{application_name}", ViewLib.html());
 }
 
