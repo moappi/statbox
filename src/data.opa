@@ -89,7 +89,7 @@ function process_delta_entry(int uid, Dropbox.delta_entry de) {
     dbpath = @/entries/all[{~uid, ~path}]
     match(de.metadata) {
     case {some: element}:
-        Log.info("Data.process_delta_entry", "Writing entry {uid}:{de.path} = {OpaSerialize.to_string({~uid, ~path, ~element})}");
+        //Log.info("Data.process_delta_entry", "Writing entry {uid}:{de.path} = {OpaSerialize.to_string({~uid, ~path, ~element})}");
         parent = PathTool.compute_parent(path);
         size =
             if (is_folder(element)) {
@@ -109,7 +109,7 @@ function process_delta_entry(int uid, Dropbox.delta_entry de) {
         case {none}: void
         case {some: parent}: schedule_size_computation(uid, parent)
         };
-        Log.info("Data.process_delta_entry", "Removing entry {uid}:{de.path}");
+        //Log.info("Data.process_delta_entry", "Removing entry {uid}:{de.path}");
         Db.remove(dbpath)
     }
 }
@@ -117,27 +117,21 @@ function process_delta_entry(int uid, Dropbox.delta_entry de) {
 function update_user_entries(int uid, Dropbox.delta delta) {
     daemon = SizeDaemons.get_mine(uid);
 
-    recursive function f(bool ready) {
-        if (ready) {
-            if (delta.reset) {
-                Log.info("Data.update_user_entries", "Flushing all data of user {uid}");
-                flush_user_entries(uid);
-                Log.info("Data.update_user_entries", "Flushing data done");
-            }
-            
-            Log.info("Data.update_user_entries", "Processing delta entries for user {uid}");
-            List.iter(process_delta_entry(uid, _), delta.entries);
-            Log.info("Data.update_user_entries", "Processing delta entries done");
-            
-            Log.info("Data.update_user_entries", "Computing sizes of folders");
-
-            // don't launch the daemon too early
-            if (delta.has_more == false) Session.send(daemon, { go });
-
-        } else { //rescue mode, may lead to temporarily incomplete stats
+    recursive function f() {
+        if (delta.reset) {
+            Log.info("Data.update_user_entries", "Flushing all data of user {uid}");
+            flush_user_entries(uid);
+            Log.info("Data.update_user_entries", "Flushing data done");
+        }
+        
+        Log.info("Data.update_user_entries", "Processing delta entries for user {uid}");
+        List.iter(process_delta_entry(uid, _), delta.entries);
+        Log.info("Data.update_user_entries", "Processing delta entries done");
+        
+        // don't launch the daemon too early
+        if (delta.has_more == false) {
+            Log.info("Data.update_user_entries", "Requesting the computation of sizes of folders");
             Session.send(daemon, { go });
-
-            Scheduler.sleep(10000, function (){Session.send(daemon, { ready: f })});
         }
     }
 
@@ -146,7 +140,7 @@ function update_user_entries(int uid, Dropbox.delta delta) {
 
 }
 
-type SD.msg = { string schedule_path } or { go } or { (bool -> void) ready }
+type SD.msg = { string schedule_path } or { go } or { (-> void) ready }
 
 type SD.daemon = Session.channel(SD.msg)
 
@@ -181,13 +175,15 @@ module SizeDaemons {
             match (mess) {
             case {schedule_path: path}: {set: List.cons(path, state)}
             case {ready: f}:
-                f((state == []));
+                f();
                 {unchanged}
             case {go}:
+                Log.info("SizeDaemons", "Starting computation of sizes of folders");
                 todo_set = List.fold(function (path, set) {
                     PathTool.fold_parents(function (p, s){ StringSet.add(p, s) }, path, set)
                 }, state, StringSet.empty);
                 _ = update_size(uid, todo_set, Data.root_path);
+                Log.info("SizeDaemons", "Terminated computation of sizes of folders (for now)");
                 {set : []}
             }
         }
@@ -213,7 +209,7 @@ module SizeDaemons {
     }
 }
 
-module Analytics { // FIXME cache everything in server RAM (with limit)
+module Analytics { // TODO: cache everything in server RAM (with limit)
     
 function count_user_entries(int uid) { // FIXME slow
     dbset(Data.entry, _) entries = /entries/all[uid == uid];
