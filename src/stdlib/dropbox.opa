@@ -151,7 +151,7 @@ type Dropbox.file = {
    * Example of date: Fri, 20 Jan 2012 16:18:23 +0000
    */
   make_date(str) =
-    do Log.info("Dropbox client", "Making date from {OpaSerialize.to_string(str)}")
+    //do Log.info("Dropbox client", "Making date from {OpaSerialize.to_string(str)}")
     int_of_text(t) = Int.of_string(Text.to_string(t))
     n = parser k=[0-9] -> k
     nn = parser v=(n+) -> int_of_text(v)
@@ -190,7 +190,7 @@ type Dropbox.file = {
       Date.now()
 
   build_quota(data) =
-    do Log.info("Dropbox client", "Parsing quota from {OpaSerialize.to_string(data)}")
+    //do Log.info("Dropbox client", "Parsing quota from {OpaSerialize.to_string(data)}")
     map = JsonOpa.record_fields(data) ? Map.empty
     int(name) = API_libs_private.map_get_int(name, map)
     { shared = int("shared")
@@ -199,7 +199,7 @@ type Dropbox.file = {
     } : Dropbox.quota_info
 
   build_infos(data) =
-    do Log.info("Dropbox client", "Parsing infos from {OpaSerialize.to_string(data)}")
+    //do Log.info("Dropbox client", "Parsing infos from {OpaSerialize.to_string(data)}")
     map = API_libs_private.parse_json(data.content)
       |> JsonOpa.record_fields
       |> Option.default(Map.empty, _)
@@ -217,7 +217,7 @@ type Dropbox.file = {
     } : Dropbox.info
 
   make_element(elt) : Dropbox.element =
-    do Log.info("Dropbox client", "Making element from {OpaSerialize.to_string(elt)}")
+    //do Log.info("Dropbox client", "Making element from {OpaSerialize.to_string(elt)}")
     map = JsonOpa.record_fields(elt) ? Map.empty
     int(name) = API_libs_private.map_get_int(name, map) //Mathieu: this function seems to return -1 on an empty entry. This is a bit dangerous...
     str(name) = API_libs_private.map_get_string(name, map)
@@ -255,12 +255,12 @@ type Dropbox.file = {
       {~metadata kind = {file = {~mime_type ~client_mtime}}}
 
   build_one_metadata(data) =
-    do Log.info("Dropbox client", "Parsing one metadata from {OpaSerialize.to_string(data)}")
+    //do Log.info("Dropbox client", "Parsing one metadata from {OpaSerialize.to_string(data)}")
     parsed = API_libs_private.parse_json(data.content)
     make_element(parsed)
 
   build_metadata_list(data) =
-    do Log.info("Dropbox client", "Parsing metadata list from {OpaSerialize.to_string(data)}")
+    //do Log.info("Dropbox client", "Parsing metadata list from {OpaSerialize.to_string(data)}")
     match API_libs_private.parse_json(data.content) with
     | {List=l} -> List.map(make_element, l)
     | _ -> []
@@ -283,7 +283,7 @@ type Dropbox.file = {
         build_delta_entries(acc, q)
 
   build_delta(data) =
-    do Log.info("Dropbox client", "Parsing delta entries from {OpaSerialize.to_string(data)}");
+    //do Log.info("Dropbox client", "Parsing delta entries from {OpaSerialize.to_string(data)}");
     map = API_libs_private.parse_json(data.content)
       |> JsonOpa.record_fields
       |> Option.default(Map.empty, _)
@@ -300,7 +300,7 @@ type Dropbox.file = {
     } : Dropbox.delta
         
   build_url(data) =
-    do Log.info("Dropbox client", "Parsing URL from {OpaSerialize.to_string(data)}")
+    //do Log.info("Dropbox client", "Parsing URL from {OpaSerialize.to_string(data)}")
     map = API_libs_private.parse_json(data.content)
       |> JsonOpa.record_fields
       |> Option.default(Map.empty, _)
@@ -310,7 +310,7 @@ type Dropbox.file = {
     } : Dropbox.url
 
   build_file(data) =
-    do Log.info("Dropbox client", "Parsing file from {OpaSerialize.to_string(data)}")
+    //do Log.info("Dropbox client", "Parsing file from {OpaSerialize.to_string(data)}")
     { content = data.content
       mime_type = data.mime_type
     } : Dropbox.file
