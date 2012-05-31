@@ -2,6 +2,8 @@ import stdlib.web.client
 
 /* functions exposed to clients */
 
+// FIXME: make each of these function thread-safe by taking a 'mutex' on the uid
+
 module ServerLib {
 
     /* authentication */
@@ -43,11 +45,13 @@ module ServerLib {
 
     function read_content() {
         match (DropboxSession.get()) {
-        case {~current_path, ~uid, credentials:_}:
-            path =
-                if (?/entries/all[{path:current_path, ~uid}] != {none}) current_path
-            else "/"
-            {folder: path, user_info:Data.get_user_info(uid).quota_info}
+        case {~current_path, ~uid, ~credentials}:
+            if (Data.is_valid(current_path, uid)) {
+                {folder: current_path, user_info:Data.get_user_info(uid).quota_info}
+            } else {
+                DropboxSession.set({current_path:Data.root_path, ~uid, ~credentials});
+                {folder: Data.root_path, user_info:Data.get_user_info(uid).quota_info};
+            }
         case {pending_request:_}: {error}
         case {disconnected}: {welcome}
         }
@@ -69,14 +73,18 @@ module ServerLib {
     function read_data(path) {
         match (DropboxSession.get_uid()) {
         case {some:uid}:
-            ViewLib.folder_info info =
-                {counter: Analytics.count_folder_entries(uid, path),
-                 total_size: Analytics.get_folder_total_size(uid, path),
-                 dotslash_size: Analytics.get_folder_dotslash_size(uid, path),
-                 full_path: Analytics.get_folder_full_path(uid, path),
-                 subdirs: Analytics.list_folder_subdirs(uid, path),                 
-                }
-            {some:info}
+            if (Data.is_valid(path, uid)) {
+                ViewLib.folder_info info =
+                    {counter: Analytics.count_folder_entries(uid, path),
+                     total_size: Analytics.get_folder_total_size(uid, path),
+                     dotslash_size: Analytics.get_folder_dotslash_size(uid, path),
+                     full_path: Analytics.get_folder_full_path(uid, path),
+                     subdirs: Analytics.list_folder_subdirs(uid, path),                 
+                    }
+                {some:info}
+            } else {
+                {none}
+            }
         default: {none}
         }
     }
@@ -90,15 +98,17 @@ module ServerLib {
 
     @async exposed function move_to_path(string path) {
         match (DropboxSession.get()) {
-        case {~uid, ~credentials, current_path:_}: DropboxSession.set({~uid, ~credentials, current_path: path})
+        case {~uid, ~credentials, current_path:_}:
+            if (Data.is_valid(path, uid)) {
+                DropboxSession.set({~uid, ~credentials, current_path: path});
+                match(read_data(path)) {
+                case {some:data}: ViewLib.set_data(path, data)
+                case {none}: void
+                } // N.B. we don't use the async function push_data to ensure that get_data is computed before the last call
+            }
+            push_content() // in any case
         default: void
         }
-        match(read_data(path)) {
-        case {some:data}: ViewLib.set_data(path, data)
-        case {none}: void
-        }
-        // N.B. we don't use the async function push_data to ensure that get_data is computed before the last call
-        push_content()
     }
 
 }

@@ -41,19 +41,6 @@ type ViewLib.folder_info = {
 
 
 module ViewLib {
-
-    function initial_setup(login, content, current_folder_data) {
-        // update client's state right away
-        ClientReference.set(viewlib_login, login);
-        ClientReference.set(viewlib_content, content);
-        match ((content, current_folder_data)) {
-        case ({folder:path ...}, {some:value}):
-            Client.Anchor.set_anchor(path);
-            ClientReference.set(viewlib_data, Map.add(path, value, ClientReference.get(viewlib_data)));
-        default: void
-        }
-        render_contentframe();
-    }
     
     // server -> client synchro
     @async client function set_login(value) {
@@ -63,6 +50,7 @@ module ViewLib {
 
     @async client function set_content(value) {
         ClientReference.set(viewlib_content, value)
+        set_anchor(value);
         render_contentframe();
         render_footer();        
     }
@@ -131,6 +119,47 @@ module ViewLib {
 
         }
     }
+
+    function set_anchor(ViewLib.content content) {
+        match (content) {
+        case ({folder:path ...}): Client.Anchor.set_anchor(path)
+        default: Client.Anchor.set_anchor("#")
+        }
+    }
+
+    // Ocaml and javascript binding
+    encode_string = %% encode.encode_string %%
+    decode_string = %% encode.decode_string %%
+
+    function make_link(xhtml label, string path_key) {
+        path = encode_string(path_key);
+        Xhtml.add_attribute_unsafe("href", "#{path}", <a>{label}</a>)
+    }
+
+    client function process_anchor(string anchor) {
+        path = decode_string(anchor);
+        Log.info("process_anchor", path);
+        match (ClientReference.get(viewlib_content)) {
+        case {~folder, ~user_info}: if (path != folder) set_content({folder: path, ~user_info});
+        default: void // not connected => we ignore anchors
+        }
+        void
+    }
+
+    client function initial_setup(ViewLib.login login, ViewLib.content content, option(ViewLib.folder_info) current_folder_data) {
+        // update client's state right away
+        ClientReference.set(viewlib_login, login);
+        ClientReference.set(viewlib_content, content);
+        set_anchor(content);
+        match ((content, current_folder_data)) {
+        case ({folder:path ...}, {some:info}):
+            ClientReference.set(viewlib_data, Map.add(path, info, ClientReference.get(viewlib_data)));
+            render_charts(info);
+        default: void
+        };
+        ignore(Client.Anchor.add_handler(process_anchor))
+    }
+
 }
 
 // pure functions to construct Html
@@ -169,8 +198,7 @@ module ViewMake {
 
         function subdir_html({~label, ~path_key, ~total_size}) {
              <tr>
-                <td><a href="#" onclick={function(_){ServerLib.move_to_path(path_key)}}>
-                  {string_limit(label, 45)}</a></td>
+                <td>{ViewLib.make_link(<span>{string_limit(label, 45)}</span>, path_key)}</td>
                 <td class="pull-right">{size_opt_html(total_size)}</td>
             </tr>
         }
@@ -216,13 +244,14 @@ module ViewMake {
         m = if (n == 0) 50 else 80 / n;
 
         function label_html(~{label, path_key}) {
+            Log.info("debug", "Making element {label} {path_key} in breadcrumb.");
             hlabel =
                 if (label == "") {
                   <img src="resources/dropbox_logo.png" alt="Root" height="32" width="32" />
                 } else {
                   <span>{string_limit(label, m)}</span>
                 }
-            ha =  <a href="#" onclick={function(_){ServerLib.move_to_path(path_key)}}>{hlabel}</a>
+            ha =  ViewLib.make_link(hlabel, path_key)
                   <+> <span class="divider">/</span>
             if (path_key == path) { // last one?
                   <li class="active">{ha}</li>

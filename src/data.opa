@@ -83,6 +83,10 @@ function is_folder(Dropbox.element element) {
     }
 }
 
+    function is_valid(string path, int uid) {
+    (path == root_path) || (?/entries/all[{~path, ~uid}] != {none})
+}
+
 function process_delta_entry(int uid, Dropbox.delta_entry de) {
 //    Log.info("Data.process_delta_entry", "Processing delta entry: {de.path}");
     path = de.path
