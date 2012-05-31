@@ -70,7 +70,7 @@ module ViewLib {
         go =
             match (Map.get(path, ClientReference.get(viewlib_data))) {
             case {none}:true
-            case {some: val}: (data != val)
+            case {some: val}: (value != val)
             } // TODO: use a timestamp rather than equality testing
 
         if (go) {
