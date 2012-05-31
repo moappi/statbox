@@ -28,10 +28,18 @@ function process_dropbox_token(string raw_token, string url) {
 }
 
 dispatcher = parser {
-case "/dropbox/connect?" raw_token=(.*) : process_dropbox_token(Text.to_string(raw_token), "/")
-//case "/favicon.ico": **TODO**
+case "/dropbox/connect?" raw_token=(.*):
+    process_dropbox_token(Text.to_string(raw_token), "/")
 case "/admin13zxx5769": admin_page()
-case "/" : Resource.html("{application_name}", ViewLib.html());
+case "/" :
+    content = ServerLib.read_content();
+    login = ServerLib.read_login();
+    pathdata = match (content) {
+    case {folder: path ...}: ServerLib.read_data(path)
+    default: {none}
+    }
+    Log.error("DEBUG", "{(content, login, pathdata)}");
+    Resource.html("{application_name}", ViewMake.page_html(login, content, pathdata));
 }
 
 Server.start(Server.http, [
@@ -45,3 +53,6 @@ Resource.register_external_js("http://twitter.github.com/bootstrap/assets/js/boo
 
 // required for Gcharts
 Resource.register_external_js("https://www.google.com/jsapi")
+
+// add the favicon link to the http header
+Resource.register_external_favicon(Favicon.make({ico}, "resources/favicon.ico"))

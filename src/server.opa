@@ -6,15 +6,15 @@ module ServerLib {
 
     /* authentication */
 
-    function read_login(f) {
+    function read_login() {
         match (DropboxSession.get()) {
-        case {~uid ...}: f({logged: Data.get_user_info(uid).display_name})
-        default: f({unlogged})
+        case {~uid ...}: {logged: Data.get_user_info(uid).display_name}
+        default: {unlogged}
         }
     }
 
     @async exposed function push_login(){
-        read_login(ViewLib.set_login(_));  //async push
+        ViewLib.set_login(read_login());  //async push
     }
 
     @async exposed function sign_in() {
@@ -41,22 +41,20 @@ module ServerLib {
 
     /* navigation */
 
-    function read_content(f) {
-        ViewLib.content x = 
-            match (DropboxSession.get()) {
-            case {~current_path, ~uid, credentials:_}:
-                path =
-                    if (?/entries/all[{path:current_path, ~uid}] != {none}) current_path
-                    else "/"
-                {folder: path, user_info:Data.get_user_info(uid).quota_info}
-            case {pending_request:_}: {error}
-            case {disconnected}: {welcome}
-            }
-        f(x)
+    function read_content() {
+        match (DropboxSession.get()) {
+        case {~current_path, ~uid, credentials:_}:
+            path =
+                if (?/entries/all[{path:current_path, ~uid}] != {none}) current_path
+            else "/"
+            {folder: path, user_info:Data.get_user_info(uid).quota_info}
+        case {pending_request:_}: {error}
+        case {disconnected}: {welcome}
+        }
     }
 
     @async exposed function push_content(){
-        read_content(ViewLib.set_content(_));
+        ViewLib.set_content(read_content());
     }
 
     @async exposed function refresh_content(){
@@ -68,7 +66,7 @@ module ServerLib {
         }
     }
 
-    function read_data(path, f) {
+    function read_data(path) {
         match (DropboxSession.get_uid()) {
         case {some:uid}:
             ViewLib.folder_info info =
@@ -78,13 +76,16 @@ module ServerLib {
                  full_path: Analytics.get_folder_full_path(uid, path),
                  subdirs: Analytics.list_folder_subdirs(uid, path),                 
                 }
-            f(info)
-        default: void
+            {some:info}
+        default: {none}
         }
     }
 
     @async exposed function push_data(path){
-        read_data(path, ViewLib.set_data(path, _));
+        match(read_data(path)) {
+        case {some:data}: ViewLib.set_data(path, data)
+        case {none}: void
+        }
     }
 
     @async exposed function move_to_path(string path) {
@@ -92,7 +93,11 @@ module ServerLib {
         case {~uid, ~credentials, current_path:_}: DropboxSession.set({~uid, ~credentials, current_path: path})
         default: void
         }
-        read_data(path, ViewLib.set_data(path, _)); // N.B. we don't use push_data to ensure that get_data is computed before the last call
+        match(read_data(path)) {
+        case {some:data}: ViewLib.set_data(path, data)
+        case {none}: void
+        }
+        // N.B. we don't use the async function push_data to ensure that get_data is computed before the last call
         push_content()
     }
 

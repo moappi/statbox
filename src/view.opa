@@ -41,6 +41,19 @@ type ViewLib.folder_info = {
 
 
 module ViewLib {
+
+    function initial_setup(login, content, current_folder_data) {
+        // update client's state right away
+        ClientReference.set(viewlib_login, login);
+        ClientReference.set(viewlib_content, content);
+        match ((content, current_folder_data)) {
+        case ({folder:path ...}, {some:value}):
+            Client.Anchor.set_anchor(path);
+            ClientReference.set(viewlib_data, Map.add(path, value, ClientReference.get(viewlib_data)));
+        default: void
+        }
+        render_contentframe();
+    }
     
     // server -> client synchro
     @async client function set_login(value) {
@@ -50,14 +63,15 @@ module ViewLib {
 
     @async client function set_content(value) {
         ClientReference.set(viewlib_content, value)
-        render_content();
+        render_contentframe();
+        render_footer();        
     }
 
     @async client function set_data(path, value) {
         ClientReference.set(viewlib_data, Map.add(path, value, ClientReference.get(viewlib_data)));
 
         match(ClientReference.get(viewlib_content)) {
-        case {folder: path2 ...}: if (path == path2) render_content();
+        case {folder: path2 ...}: if (path == path2) render_contentframe();
         default: void
         }
     }
@@ -66,10 +80,64 @@ module ViewLib {
         ClientReference.set(viewlib_data, Map.empty);
     }
 
-    // rendering functions
     function render_login() {
-        html =
-            match(ClientReference.get(viewlib_login)){
+        #login = ViewMake.login_html(ClientReference.get(viewlib_login))
+    }
+
+    function render_charts(ViewLib.folder_info info) {
+        /* Charts */    
+        options = [ {title: "Space usage per sub-directory"},
+                    {width:450},
+                    {height:400},
+                  ];
+
+        data = GCharts.DataTable.make_simple(
+            ("directory","size"),
+            List.cons((ViewMake.current_path, info.dotslash_size),
+                      List.fold(function(e, l){ match(e.total_size) {
+                      case {none}: l
+                      case {some: size}: List.cons((e.label, size), l)
+                      }}, info.subdirs, [])
+                     ));
+        
+        GCharts.draw({pie_chart}, "charts", data, options);
+    }
+
+    function render_footer() {
+        #footer = ViewMake.footer_html(ClientReference.get(viewlib_content))
+    }
+
+
+    function render_contentframe() {
+        match(ClientReference.get(viewlib_content)) {
+        case {folder: path ...}:
+            m = ClientReference.get(viewlib_data)
+            if (Map.mem(path, m) == false) {
+                Log.info("ViewLib", "missing data for path {path}: requesting server");
+                ServerLib.push_data(path)
+            } else {
+                match (Map.get(path, m)) {
+                case {some: info}:
+                    #content = ViewMake.folder_html(path, info);
+                    render_charts(info) // !!
+                default: void
+                }
+            }
+        case {welcome}:
+            #content = ViewMake.welcome_html();
+
+        case {error}:
+            #content = ViewMake.error_html()
+
+        }
+    }
+}
+
+// pure functions to construct Html
+module ViewMake {
+
+    function login_html(login) {
+            match(login){
             case {unlogged}:
                 WB.Button.make({button:<>Sign in</>, callback:function(_){ServerLib.sign_in()}}, [{primary}])
             case {logged: name}:
@@ -86,7 +154,6 @@ module ViewLib {
                     </ul>
                  </div>
             }
-        #login = html
     }
 
     function size_opt_html(sizeopt) {
@@ -96,9 +163,9 @@ module ViewLib {
         }
     }
 
+    current_path = "(files in current dir.)"
 
-// TODO prefetch data of subdirs?
-    function render_folder(string path, ViewLib.folder_info info) {
+    function folder_html(string path, ViewLib.folder_info info) {
 
         function subdir_html({~label, ~path_key, ~total_size}) {
              <tr>
@@ -107,8 +174,6 @@ module ViewLib {
                 <td class="pull-right">{size_opt_html(total_size)}</td>
             </tr>
         }
-
-        current_path = "(files in current dir.)"
 
         // reverse order, unknown size last
         function compare_subdir({~total_size ...}) {
@@ -119,12 +184,10 @@ module ViewLib {
         }
 
         /* navigation */
-        #content =
-          <div class="row" id="pathnav">
-            <div class="span12">{path_html(path, info.full_path)}</div>
-          </div>
-
-          <div class="row">
+       <div class="row" id="pathnav">
+          <div class="span12">{path_html(path, info.full_path)}</div>
+        </div>
+       <div class="row">
           <div class="well span5" id="navigation">
             <table class="table">
             {List.map(function(sd){subdir_html(sd)}, List.sort_by(compare_subdir, info.subdirs))}
@@ -135,24 +198,7 @@ module ViewLib {
           </div>
           <div class="span5" id="charts">
           </div>
-          </div>
-
-        /* Charts */    
-        options = [ {title: "Space usage per sub-directory"},
-                    {width:450},
-                    {height:400},
-                  ];
-
-        data = GCharts.DataTable.make_simple(
-            ("directory","size"),
-            List.cons((current_path, info.dotslash_size),
-                      List.fold(function(e, l){ match(e.total_size) {
-                      case {none}: l
-                      case {some: size}: List.cons((e.label, size), l)
-                      }}, info.subdirs, [])
-                     ));
-        
-        GCharts.draw({pie_chart}, "charts", data, options);
+       </div>
     }
 
     //this function should exist somewhere!
@@ -209,7 +255,7 @@ module ViewLib {
         "{(Float.to_int(x*100.))}.{Float.to_int(10.*(100.*x - Float.floor(100.*x)))} %"
     }
 
-    function render_user_info(Dropbox.quota_info {~shared, ~normal, ~total}) {
+    function user_info_html(Dropbox.quota_info {~shared, ~normal, ~total}) {
         s = Float.of_int(shared)
         n = Float.of_int(normal)
         t = Float.of_int(total)
@@ -218,11 +264,18 @@ module ViewLib {
 
         // TODO: on-mouseover % => real size 
         // Or progress bar: <div class="progress"> <div class="bar" style="width: 60%;"></div></div>
-        #footer = <p>You are using <b>{human_readable_percentage(ratio_used)}</b> of the <b>{human_readable_size(total)}</b> of space available. <b>{human_readable_percentage(ratio_shared)}</b> of your files are shared. </p>
+        <p>You are using <b>{human_readable_percentage(ratio_used)}</b> of the <b>{human_readable_size(total)}</b> of space available. <b>{human_readable_percentage(ratio_shared)}</b> of your files are shared. </p>
     }
 
     function default_footer_html() {
         <p>&copy; Mathieu Baudet 2012 -- CSS styles and layout based on Twitter Bootstrap</p>
+    }
+
+    function footer_html(ViewLib.content content) {
+        match(content) {
+        case {user_info: info ...}: user_info_html(info)
+        default: default_footer_html()
+        }
     }
 
     function welcome_html() {
@@ -242,49 +295,46 @@ module ViewLib {
       </div>
     }
 
-    function render_content() {
-        match(ClientReference.get(viewlib_content)) {
-        case {folder: path, ~user_info}:
-            m = ClientReference.get(viewlib_data)
-            if (Map.mem(path, m) == false) {
-                Log.info("ViewLib", "missing data for path {path}: requesting server");
-                ServerLib.push_data(path)
-            } else {
-                match (Map.get(path, m)) {
+    function contentframe_html(ViewLib.content content, option(ViewLib.folder_info) current_folder_data) {
+        match(content) {
+        case {folder: path, ...}:
+                match (current_folder_data) {
                 case {some: info}:
-                    render_folder(path, info)
-                    render_user_info(user_info)
-                default: void
+                    ViewMake.folder_html(path, info)
+                default: //impossible
+                    ViewMake.error_html()
                 }
-            }
         case {welcome}:
-            #content = welcome_html();
-            #footer = default_footer_html()
+            ViewMake.welcome_html();
 
         case {error}:
-            #content = error_html()
-            #footer = default_footer_html()
+            ViewMake.error_html()
 
         }
     }
 
     // server side construction of the initial main view
-    function html() {
-    <div class="navbar navbar-fixed-top" id="view" onready={function(_){ServerLib.push_login(); ServerLib.push_content()}}>
+    // we only use the entry 'content.folder' (if any) from the data map
+    function page_html(ViewLib.login login, ViewLib.content content, option(ViewLib.folder_info) current_folder_data) {
+    <div class="navbar navbar-fixed-top" id="view" onready={function(_){
+        ViewLib.initial_setup(login, content, current_folder_data);
+    }}>
       <div class="navbar-inner">
         <div class="container">
           <a class="brand" href="#">{application_name}</a>
-          <span id="login" class="pull-right"/>
+            <span id="login" class="pull-right">{
+                login_html(login)
+            }</span>
         </div>
       </div>
     </div>
     <div class="container">
       <div class="row" id="content">
-            {welcome_html()}
+            {contentframe_html(content, current_folder_data)}
       </div>
       <hr>
       <footer class="footer" id="footer">
-            {default_footer_html()}
+            {footer_html(content)}
       </footer>
     </div>
     }

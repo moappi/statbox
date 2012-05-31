@@ -7,6 +7,7 @@ type DropboxSession.status =
 or {OAuth.token pending_request}
 or {Dropbox.credentials credentials, int uid, string current_path} //authenticated
 
+// FIXME: memory leak (we never clean the cookie table) 
 protected UserContext.t(DropboxSession.status) context = UserContext.make({disconnected})
 
 // Mathieu: TODO: deal with expiration of credentials via error codes
