@@ -44,6 +44,7 @@ module ViewLib {
     
     // server -> client synchro
     @async client function set_login(value) {
+        Log.info("set_login", "{value}");
         ClientReference.set(viewlib_login, value)
         render_login();
     }
@@ -51,7 +52,6 @@ module ViewLib {
     @async client function set_content(value) {
         old_value = ClientReference.get(viewlib_content);
         ClientReference.set(viewlib_content, value);
-        set_anchor(value);
 
         (same_path, same_info) = 
             match((old_value, value)) {
@@ -60,10 +60,14 @@ module ViewLib {
             case ({welcome}, {welcome}): (true, true)
             case ({error}, {error}): (true, true)
             default: (false, false)
-                // (we don't make precise all cases for the footer)
+                // N.B. we don't make precise all the cases for the footer
             }
+
+        Log.info("set_content", "{value} => {same_path}, {same_info}");
+
+        set_anchor(value);
         if (same_path == false) render_contentframe();
-        if (same_info == false) render_footer();        
+        if (same_info == false) render_footer();
     }
 
     @async client function set_data(path, value) {
@@ -72,6 +76,8 @@ module ViewLib {
             case {none}:true
             case {some: val}: (value != val)
             } // TODO: use a timestamp rather than equality testing
+
+        Log.info("set_data", "{path} {value} => {go}");
 
         if (go) {
             ClientReference.set(viewlib_data, Map.add(path, value, ClientReference.get(viewlib_data)));
@@ -88,10 +94,12 @@ module ViewLib {
     }
 
     function render_login() {
+        Log.info("render_login", "{ClientReference.get(viewlib_login)}");
         #login = ViewMake.login_html(ClientReference.get(viewlib_login))
     }
 
     function render_charts(ViewLib.folder_info info) {
+        Log.info("render_charts", "{info}");
         /* Charts */    
         options = [ {title: "Space usage per sub-directory"},
                     {width:450},
@@ -111,11 +119,13 @@ module ViewLib {
     }
 
     function render_footer() {
+        Log.info("render_footer", "{ClientReference.get(viewlib_content)}");
         #footer = ViewMake.footer_html(ClientReference.get(viewlib_content))
     }
 
 
     function render_contentframe() {
+        Log.info("render_contentframe", "{ClientReference.get(viewlib_content)}");
         match(ClientReference.get(viewlib_content)) {
         case {folder: path ...}:
             m = ClientReference.get(viewlib_data)
@@ -164,10 +174,14 @@ module ViewLib {
                 m = ClientReference.get(viewlib_data)
                 // if we have the info locally, we agressively switch 
                 if (Map.mem(path, m) == true) {
-                    ClientReference.set(viewlib_content, {folder:path, ~user_info})
+                    Log.info("process_anchor", "data already present");
+                    ClientReference.set(viewlib_content, {folder:path, ~user_info});
                     render_contentframe();
+                } else {
+                    Log.info("process_anchor", "missing data");
                 }
                 // then, and in any case, we tell the server we wanted to move
+                Log.info("process_anchor", "updating server");
                 ServerLib.move_to_path(path)
             }
         default: Client.Anchor.set_anchor("") // not connected => we ignore anchors
