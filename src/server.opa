@@ -98,15 +98,18 @@ module ServerLib {
 
     @async exposed function move_to_path(string path) {
         match (DropboxSession.get()) {
-        case {~uid, ~credentials, current_path:_}:
+        case {~uid, ~credentials, current_path:_}: {
             if (Data.is_valid(path, uid)) {
                 DropboxSession.set({~uid, ~credentials, current_path: path});
                 match(read_data(path)) {
                 case {some:data}: ViewLib.set_data(path, data)
                 case {none}: void
                 } // N.B. we don't use the async function push_data to ensure that get_data is computed before the last call
+            } else {
+                Log.error("ServerLib.move_to_path", "invalid path {path}");
             }
             push_content() // in any case
+        }
         default: void
         }
     }
