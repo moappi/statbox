@@ -49,18 +49,37 @@ module ViewLib {
     }
 
     @async client function set_content(value) {
-        ClientReference.set(viewlib_content, value)
+        old_value = ClientReference.get(viewlib_content);
+        ClientReference.set(viewlib_content, value);
         set_anchor(value);
-        render_contentframe();
-        render_footer();        
+
+        (same_path, same_info) = 
+            match((old_value, value)) {
+            case ({folder: path1, user_info : info1}, {folder: path2, user_info : info2}):
+                ((path1 == path2), (info1 == info2))
+            case ({welcome}, {welcome}): (true, true)
+            case ({error}, {error}): (true, true)
+            default: (false, false)
+                // (we don't make precise all cases for the footer)
+            }
+        if (same_path == false) render_contentframe();
+        if (same_info == false) render_footer();        
     }
 
     @async client function set_data(path, value) {
-        ClientReference.set(viewlib_data, Map.add(path, value, ClientReference.get(viewlib_data)));
+        go =
+            match (Map.get(path, ClientReference.get(viewlib_data))) {
+            case {none}:true
+            case {some: val}: (data != val)
+            } // TODO: use a timestamp rather than equality testing
 
-        match(ClientReference.get(viewlib_content)) {
-        case {folder: path2 ...}: if (path == path2) render_contentframe();
-        default: void
+        if (go) {
+            ClientReference.set(viewlib_data, Map.add(path, value, ClientReference.get(viewlib_data)));
+
+            match(ClientReference.get(viewlib_content)) {
+            case {folder: path2 ...}: if (path == path2) render_contentframe();
+            default: void
+            }
         }
     }
 
@@ -123,7 +142,7 @@ module ViewLib {
     function set_anchor(ViewLib.content content) {
         match (content) {
         case ({folder:path ...}): Client.Anchor.set_anchor(path)
-        default: Client.Anchor.set_anchor("#")
+        default: Client.Anchor.set_anchor("")
         }
     }
 
@@ -140,10 +159,19 @@ module ViewLib {
         path = decode_string(anchor);
         Log.info("process_anchor", path);
         match (ClientReference.get(viewlib_content)) {
-        case {~folder, ~user_info}: if (path != folder) set_content({folder: path, ~user_info});
-        default: void // not connected => we ignore anchors
+        case {~folder, ~user_info}:
+            if (path != folder) {
+                m = ClientReference.get(viewlib_data)
+                // if we have the info locally, we agressively switch 
+                if (Map.mem(path, m) == true) {
+                    ClientReference.set(viewlib_content, {folder:path, ~user_info})
+                    render_contentframe();
+                }
+                // then, and in any case, we tell the server we wanted to move
+                ServerLib.move_to_path(path)
+            }
+        default: Client.Anchor.set_anchor("") // not connected => we ignore anchors
         }
-        void
     }
 
     client function initial_setup(ViewLib.login login, ViewLib.content content, option(ViewLib.folder_info) current_folder_data) {
