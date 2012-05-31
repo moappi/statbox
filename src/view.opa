@@ -43,15 +43,17 @@ type ViewLib.folder_info = {
 module ViewLib {
     
     // server -> client synchro
-    @async client function set_login(value) {
+    @async client function set_login(ViewLib.login value) {
         Log.info("set_login", "{value}");
         ClientReference.set(viewlib_login, value)
         render_login();
     }
 
-    @async client function set_content(value) {
+    @async client function set_content(ViewLib.content value) {
         old_value = ClientReference.get(viewlib_content);
         ClientReference.set(viewlib_content, value);
+
+        Log.info("set_content", "{old_value} {value}"); // DO NOT REMOVE: Opa seems to need this to compile equality tests propertly !!
 
         (same_path, same_info) = 
             match((old_value, value)) {
@@ -65,19 +67,20 @@ module ViewLib {
 
         Log.info("set_content", "{value} => {same_path}, {same_info}");
 
-        set_anchor(value);
         if (same_path == false) render_contentframe();
         if (same_info == false) render_footer();
+        set_anchor(value);
     }
 
-    @async client function set_data(path, value) {
+    @async client function set_data(string path, ViewLib.folder_info value) {
+
         go =
             match (Map.get(path, ClientReference.get(viewlib_data))) {
             case {none}:true
             case {some: val}: (value != val)
             } // TODO: use a timestamp rather than equality testing
 
-        Log.info("set_data", "{path} {value} => {go}");
+        Log.info("set_data", "{path} => {go}");
 
         if (go) {
             ClientReference.set(viewlib_data, Map.add(path, value, ClientReference.get(viewlib_data)));
