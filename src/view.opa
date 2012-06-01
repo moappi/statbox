@@ -312,7 +312,7 @@ module ViewMake {
         <ul class="breadcrumb">
             {List.map(label_html, full_path)}
             <li class="pull-right">
-            <a onclick={function(_){ ServerLib.refresh_content()} }>
+            <a onclick={function(_){ ViewLib.flush_data(); ServerLib.refresh_content(false)} }>
             <img src="resources/refresh.png" alt="refresh" height="32" width="32" />
             </a>
             </li>
@@ -383,10 +383,11 @@ module ViewMake {
         loop();
     }
 
+    // FIXME: we may to cap the number of hard refresh for all the instances of a same user..
     function make_hard_refresh_loop(t) {
         recursive function loop() {
             match (ClientReference.get(viewlib_content)) {
-            case {folder:_ ...}: ServerLib.refresh_content();
+            case {folder:_ ...}: ServerLib.refresh_content(true);
             default: void
             }
             ignore(Client.setTimeout(loop, t));         
@@ -395,7 +396,7 @@ module ViewMake {
     }
 
     function refresh_html() {
-            <div class="hero-unit" onready={function(_){make_soft_refresh_loop(1000)}}>
+        <div class="hero-unit" onready={function(_){make_soft_refresh_loop(1000)}}>
         <h2>Thanks for using {application_name}</h2>
         <h3>Your file information are being processed, and statistics will be available soon.</h3>
         </div>

@@ -85,7 +85,7 @@ module DropboxSession {
         case {success:info}:
             Data.update_user_info(info);
             set({~credentials, uid:info.uid, current_path:Data.root_path, refreshing:true});
-            Scheduler.push(function(){ignore(refresh_user_entries(function(){void}))});
+            Scheduler.push(function(){ignore(refresh_user_entries(function(){void}, false))});
             {success}
         default: // BUG of the API client: we don't fail on error codes != 200
             set({disconnected});
@@ -113,14 +113,15 @@ module DropboxSession {
         }
     }
     
-    function refresh_user_entries(fcallback) {
+    function refresh_user_entries(refresh_view, bool background_task) {
         match (get()) {
         case {~credentials, ~uid, ~current_path, refreshing:_}:
             function callback() {
                 set({~credentials, ~uid, ~current_path, refreshing:false});
-                fcallback()
+                refresh_view()
             }
             set({~credentials, ~uid, ~current_path, refreshing:true});
+            if (background_task == false) refresh_view();
             process_delta_entries(uid, credentials, 0, callback)
         default: mkerror("User not authenticated");
         }

@@ -62,13 +62,8 @@ module ServerLib {
         ViewLib.set_content(read_content());
     }
 
-    @async exposed function refresh_content(){
-        function callback() {
-            ViewLib.flush_data();
-            push_content()
-        }
-
-        match (DropboxSession.refresh_user_entries(callback)) {
+    @async exposed function refresh_content(bool is_background_task){
+        match (DropboxSession.refresh_user_entries(push_content, is_background_task)) {
             case {success}: void
             case {~error}: Log.error("ServerLib.refresh_content", "failed : {error}")
         }
