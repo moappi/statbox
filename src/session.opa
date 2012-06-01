@@ -15,11 +15,13 @@ module DropboxSession {
 
     private D = Dropbox(dropbox_config)   // nobody should call Dropbox REST APIs outside this module
 
-    function get() { (Pool.get(context, HttpRequest.get_cookie()?"") ? {disconnected}) }
+    private init_state = {disconnected}
+
+    function get() { (Pool.get(context, HttpRequest.get_cookie()?"") ? init_state) }
 
     function set(r) { Pool.set(context, HttpRequest.get_cookie()?"", r) }
 
-    function get_by_cookie(key) { (Pool.get(context, key?"") ? {disconnected}) }
+    function get_by_cookie(key) { (Pool.get(context, key?"") ? init_state) }
 
     function set_by_cookie(key, r) { Pool.set(context, key?"", r) }
 
@@ -27,6 +29,30 @@ module DropboxSession {
         match(get()) {
         case {~uid ...}: some(uid)
         default: none
+        }
+    }
+
+    function get_view_actor() { 
+        match(get()) {
+        case {~view_actor ...}: view_actor
+        default: none
+        }
+    }
+
+    function set_view_actor(view_actor) { 
+        match (get()) {
+        case {~uid, ~credentials, ~current_path, ~refreshing, view_actor:_}:
+            set({~uid, ~credentials, ~current_path, ~refreshing, ~view_actor})
+        default:
+            Log.info("DropboxSession.set_view_Actor", "discarding actor")
+        }
+    }
+
+    function set_refresh_by_cookie(cookie, flag) { 
+        match (get_by_cookie(cookie)) {
+        case {~uid, ~credentials, ~current_path, refreshing:_, ~view_actor}:
+            set_by_cookie(cookie, {~uid, ~credentials, ~current_path, refreshing:flag, ~view_actor})
+        default: void
         }
     }
 
@@ -88,7 +114,7 @@ module DropboxSession {
         match (D.Account.info(credentials)) {
         case {success:info}:
             Data.update_user_info(info);
-            set({~credentials, uid:info.uid, current_path:Data.root_path, refreshing:true, view_actor:none});
+            set({~credentials, uid:info.uid, current_path:Data.root_path, refreshing:true, view_actor:get_view_actor()});
             Scheduler.push(function(){ignore(refresh_user_entries(function(){void}, false))});
             {success}
         default: // BUG of the API client: we don't fail on error codes != 200
@@ -121,10 +147,10 @@ module DropboxSession {
         case {~credentials, ~uid, ~current_path, refreshing:_, ~view_actor}:
             cookie = HttpRequest.get_cookie()
             function callback() {
-                set_by_cookie(cookie, {~credentials, ~uid, ~current_path, refreshing:false, ~view_actor});
+                set_refresh_by_cookie(cookie, false);
                 refresh_view()
             }
-            set({~credentials, ~uid, ~current_path, refreshing:true, ~view_actor});
+            set_refresh_by_cookie(cookie, true);
             if (background_task == false) refresh_view();
             process_delta_entries(uid, credentials, 0, callback)
         default: mkerror("User not authenticated");

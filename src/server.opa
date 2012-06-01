@@ -70,7 +70,7 @@ module ServerLib {
     function send_content(cookie){
         match (DropboxSession.get_by_cookie(cookie)) {
         case {view_actor:{some:view_actor}, ~uid...}:
-            Log.info("Server.send_content", "reaching user {uid} through actor {OpaSerialize.to_string(view_actor)}");
+            Log.info("Server.send_content", "reaching user {uid} through actor");
             ViewActor.set_content(view_actor, read_content_by_cookie(cookie));
         case {view_actor:{none}, ~uid...}:
             Log.error("Server.send_content", "user {uid} not registered yet");
@@ -139,7 +139,7 @@ module ServerLib {
             Log.info("ServerLib.register_actor", "registering view actor for user {uid} @ {HttpRequest.get_cookie()}");
             DropboxSession.set({~uid, ~credentials, ~current_path, ~refreshing, view_actor:some(view_actor)})
         default:
-            Log.error("ServerLib.register_actor", "trying to register a view actor on a wrong state for user ?? @ {HttpRequest.get_cookie()}")
+            DropboxSession.set_view_actor(some(view_actor))
         }
     }
 }
