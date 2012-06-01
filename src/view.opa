@@ -158,7 +158,12 @@ module ViewLib {
 
     function set_anchor(ViewLib.content content) {
         match (content) {
-        case ({folder:path ...}): Client.Anchor.set_anchor(path)
+        case ({folder:path ...}):
+            if (Client.Anchor.get_anchor() != encode_string(path)) {
+                Client.Anchor.set_anchor(path)
+            } else {
+                Log.info("set_anchor", "skipping not changing anchor {encode_string(path)}")
+            }
         default: Client.Anchor.set_anchor("")
         }
     }
