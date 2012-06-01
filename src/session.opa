@@ -8,16 +8,20 @@ or {OAuth.token pending_request}
 or {Dropbox.credentials credentials, int uid, string current_path, bool refreshing, option(ViewActor.chan) view_actor} //authenticated
 
 // FIXME: memory leak (we never clean the cookie table) 
-protected UserContext.t(DropboxSession.status) context = UserContext.make({disconnected})
+protected Pool.t(DropboxSession.status) context = Pool.make()
 
 // Mathieu: TODO: deal with expiration of credentials via error codes
 module DropboxSession {
 
     private D = Dropbox(dropbox_config)   // nobody should call Dropbox REST APIs outside this module
 
-    function get() { UserContext.execute(function(s){ s }, context) }
+    function get() { (Pool.get(context, HttpRequest.get_cookie()?"") ? {disconnected}) }
 
-    function set(r) { UserContext.change(function(_){ r }, context) }
+    function set(r) { Pool.set(context, HttpRequest.get_cookie()?"", r) }
+
+    function get_by_cookie(key) { (Pool.get(context, key?"") ? {disconnected}) }
+
+    function set_by_cookie(key, r) { Pool.set(context, key?"", r) }
 
     function get_uid() { 
         match(get()) {
@@ -115,8 +119,9 @@ module DropboxSession {
     function refresh_user_entries(refresh_view, bool background_task) {
         match (get()) {
         case {~credentials, ~uid, ~current_path, refreshing:_, ~view_actor}:
+            cookie = HttpRequest.get_cookie()
             function callback() {
-                set({~credentials, ~uid, ~current_path, refreshing:false, ~view_actor});
+                set_by_cookie(cookie, {~credentials, ~uid, ~current_path, refreshing:false, ~view_actor});
                 refresh_view()
             }
             set({~credentials, ~uid, ~current_path, refreshing:true, ~view_actor});

@@ -469,7 +469,7 @@ type ViewActor.chan = Session.channel(ViewActor.msg)
 module ViewActor {
 
     client function make() {
-        function on_msg(void, { set_content: content }) {
+        function on_msg(void _v, { set_content: content }) {
             ViewLib.set_content(content);
             {unchanged}
         }

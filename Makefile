@@ -1,7 +1,7 @@
 ## build rules
 
 SRCDIR=src
-SOURCES=$(addprefix $(SRCDIR)/,data.opa config.opa session.opa server.opa main.opa view.opa)
+SOURCES=$(addprefix $(SRCDIR)/,pool.opa data.opa config.opa session.opa server.opa main.opa view.opa)
 RESOURCES=resources/*
 
 LIBDIR=src/stdlib
