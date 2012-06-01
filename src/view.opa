@@ -151,8 +151,9 @@ module ViewLib {
                     if (info.total_size == {none}
                         || List.exists(is_incomplete, info.subdirs))
                     {
-                        Log.info("ViewLib.folder_html", "incomplete stats: setting up a data refresh loop");
-                        ViewMake.make_data_refresh_loop(2000);
+                        Log.info("ViewLib.folder_html", "incomplete stats: flushing data");
+                        ViewLib.flush_data();                        
+//                        ViewMake.make_data_refresh_loop(2000); // broken??
                     }
                     render_charts(info) // !!
                 default: void

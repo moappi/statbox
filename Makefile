@@ -45,6 +45,11 @@ mongo-stats::
 	$(MONGO) users --quiet --eval "db.all.find().count()"
 	$(MONGO) entries --quiet --eval "db.all.find().count()"
 
+mongo-flush-me:
+	$(MONGO) users --quiet --eval  "db.all.remove({uid:NumberLong($(MY_DROPBOX_ID))})"
+	$(MONGO) entries --quiet --eval "db.all.remove({uid:NumberLong($(MY_DROPBOX_ID))})"
+
+
 run:: statbox
 	killall statbox || true
 	mkdir -p $(DBPATH)
