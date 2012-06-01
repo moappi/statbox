@@ -39,7 +39,7 @@ case "/" :
     case {folder: path ...}: ServerLib.read_data(path)
     default: {none}
     }
-    Log.error("DEBUG", "{(content, login, pathdata)}");
+    Log.info("URL dispatcher", "Server page / with params {(content, login, pathdata)}");
     Resource.html("{application_name}", ViewMake.page_html(login, content, pathdata));
 }
 
