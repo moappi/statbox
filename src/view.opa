@@ -149,14 +149,14 @@ module ViewLib {
                 match (Map.get(path, m)) {
                 case {some: info}:
                     #content = ViewMake.folder_html(path, info);
+                    render_charts(info) // !!
                     if (info.total_size == {none}
                         || List.exists(is_incomplete, info.subdirs))
                     {
                         Log.info("ViewLib.folder_html", "incomplete stats: flushing data");
                         ViewLib.flush_data();                        
-//                        ViewMake.make_data_refresh_loop(2000); // broken??
+                        ViewMake.make_data_refresh_loop(2000);
                     }
-                    render_charts(info) // !!
                 default: void
                 }
             }
