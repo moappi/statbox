@@ -291,7 +291,7 @@ module ViewMake {
             <div class="well span5" id="navigation">
             <table class="table">
             {List.map(function(sd){subdir_html(sd)}, List.sort_by(compare_subdir, info.subdirs))}
-              {subdir_html({label:current_path, path_key:path, total_size:{some: info.dotslash_size}})}
+        {if (info.counter != List.length(info.subdirs)) { subdir_html({label:current_path, path_key:path, total_size:{some: info.dotslash_size}})}else { <></> } }
             <tr><td><h4>{info.counter} elements</h4></td>
             <td class="pull-right"><h4>{size_opt_html(info.total_size)}</h4></td></tr>
             </table>
