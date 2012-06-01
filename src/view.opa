@@ -58,7 +58,8 @@ module ViewLib {
         (same_path, same_info) = 
             match((old_value, value)) {
             case ({folder: path1, user_info : info1}, {folder: path2, user_info : info2}):
-                ((path1 == path2), (info1 == info2))
+                ((path1 == path2 && Map.mem(path2, ClientReference.get(viewlib_data))), (info1 == info2))
+                // second condition Map.mem(..) on path is meant in particular to trigger a push_data if the map has been flushed 
             case ({welcome}, {welcome}): (true, true)
             case ({error}, {error}): (true, true)
             case ({refreshing}, {refreshing}): (true, true)
