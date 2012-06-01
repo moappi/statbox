@@ -30,19 +30,20 @@ clean::
 ## hackish deployment scripts: use with care
 DBPATH=$(HOME)/var/mongodb
 BINPATH=$(HOME)/bin
+MONGO=$(BINPATH)/mongo
 
 mongo-flush::
-	mongo entries --quiet --eval "db.all.remove({})"
-	mongo users --quiet --eval "db.all.remove({})"
+	$(MONGO) entries --quiet --eval "db.all.remove({})"
+	$(MONGO) users --quiet --eval "db.all.remove({})"
 
 mongo-init::
-	mongo entries --quiet --eval 'db.all.ensureIndex({ "uid":1, "parent.some":1 });'
-	mongo entries --quiet --eval 'db.all.ensureIndex({ "uid":1, "parent":1 });'
+	$(MONGO) entries --quiet --eval 'db.all.ensureIndex({ "uid":1, "parent.some":1 });'
+	$(MONGO) entries --quiet --eval 'db.all.ensureIndex({ "uid":1, "parent":1 });'
 #TODO: figure out which one is useful
 
 mongo-stats::
-	mongo users --quiet --eval "db.all.find().count()"
-	mongo entries --quiet --eval "db.all.find().count()"
+	$(MONGO) users --quiet --eval "db.all.find().count()"
+	$(MONGO) entries --quiet --eval "db.all.find().count()"
 
 run:: statbox
 	killall statbox || true
