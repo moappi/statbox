@@ -212,8 +212,9 @@ module ViewLib {
             render_charts(info);
         default: void
         };
+        actor = ViewActor.make()
+        ServerLib.register_actor(actor);
         ignore(Client.Anchor.add_handler(process_anchor))
-        ServerLib.register_actor(ViewActor.make());
         ViewMake.make_hard_refresh_loop(60000);
     }
 

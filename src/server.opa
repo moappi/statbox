@@ -43,8 +43,8 @@ module ServerLib {
 
     /* navigation */
 
-    function read_content() {
-        match (DropboxSession.get()) {
+    function read_content_by_cookie(cookie) {
+        match (DropboxSession.get_by_cookie(cookie)) {
         case {~current_path, ~uid, ~credentials, refreshing:{false}, ~view_actor}:
             if (Data.is_valid(current_path, uid)) {
                 {folder: current_path, user_info:Data.get_user_info(uid).quota_info}
@@ -58,26 +58,31 @@ module ServerLib {
         }
     }
 
+    function read_content() {
+        read_content_by_cookie(HttpRequest.get_cookie());
+    }
+
     @async exposed function push_content(){
         ViewLib.set_content(read_content());
     }
 
     // more robust variant based on an explicitly registered actor
-    function send_content(){
-        match (DropboxSession.get()) {
+    function send_content(cookie){
+        match (DropboxSession.get_by_cookie(cookie)) {
         case {view_actor:{some:view_actor}, ~uid...}:
             Log.info("Server.send_content", "reaching user {uid} through actor {OpaSerialize.to_string(view_actor)}");
-            ViewActor.set_content(view_actor, read_content());
+            ViewActor.set_content(view_actor, read_content_by_cookie(cookie));
         case {view_actor:{none}, ~uid...}:
             Log.error("Server.send_content", "user {uid} not registered yet");
-            Scheduler.sleep(3000, send_content); //FIXME: increasing time and/or bounded number of attempts
+            Scheduler.sleep(3000, function(){send_content(cookie)}); //FIXME: increasing time and/or bounded number of attempts
         default:
             Log.error("Server.send_content", "wrong user state");
         }
     }
 
     @async exposed function refresh_content(bool is_background_task){
-        match (DropboxSession.refresh_user_entries(send_content, is_background_task)) {
+        cookie = HttpRequest.get_cookie();
+        match (DropboxSession.refresh_user_entries(function (){send_content(cookie)}, is_background_task)) {
             case {success}: void
             case {~error}: Log.error("ServerLib.refresh_content", "failed : {error}")
         }
@@ -128,12 +133,13 @@ module ServerLib {
         }
     }
 
-    @async exposed function register_actor(ViewActor.chan view_actor){
+    exposed function register_actor(ViewActor.chan view_actor){
         match (DropboxSession.get()) {
         case {~uid, ~credentials, ~current_path, ~refreshing, view_actor:_}:
             Log.info("ServerLib.register_actor", "registering view actor for user {uid} @ {HttpRequest.get_cookie()}");
             DropboxSession.set({~uid, ~credentials, ~current_path, ~refreshing, view_actor:some(view_actor)})
-        default: void
+        default:
+            Log.error("ServerLib.register_actor", "trying to register a view actor on a wrong state for user ?? @ {HttpRequest.get_cookie()}")
         }
     }
 }
