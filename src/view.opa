@@ -432,7 +432,7 @@ module ViewMake {
     }
 
     function refresh_html() {
-        <div class="hero-unit" onready={function(_){make_soft_refresh_loop(1000)}}>
+        <div class="hero-unit" onready={function(_){make_soft_refresh_loop(2000)}}>
         <h2>Thanks for using {application_name}</h2>
         <h3>Your file information are being processed, and statistics will be available soon.</h3>
         </div>
