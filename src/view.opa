@@ -154,8 +154,7 @@ module ViewLib {
                         || List.exists(is_incomplete, info.subdirs))
                     {
                         Log.info("ViewLib.folder_html", "incomplete stats: flushing data");
-                        ViewLib.flush_data();                        
-                        ViewMake.make_data_refresh_loop(2000);
+                        ViewLib.flush_data();
                     }
                 default: void
                 }
@@ -398,27 +397,24 @@ module ViewMake {
       </div>
     }
 
+    function is_missing_data() {
+         match(ClientReference.get(viewlib_content)) {
+         case {refreshing}: true
+         case {folder: path ...}:
+             (Map.mem(path, ClientReference.get(viewlib_data))==false)
+         default:false
+         }
+    }
+
     function make_soft_refresh_loop(t) {
         recursive function loop() {
-            if (ClientReference.get(viewlib_content) == {refreshing}) {
+            if (is_missing_data()) {
                 ServerLib.push_content();
-                Log.info("refresh_loop", "hard");
+                Log.info("refresh_loop", "soft");
                 ignore(Client.setTimeout(loop, t));
             }
         }
         loop();
-    }
-
-    function make_data_refresh_loop(t) {
-        recursive function loop() {
-            if (ClientReference.get(viewlib_content) == {refreshing}) {
-                ViewLib.flush_data();
-                ServerLib.push_content();
-                Log.info("refresh_loop", "data");
-                ignore(Client.setTimeout(loop, t));
-            }
-        }
-        ignore(Client.setTimeout(loop, t));
     }
 
     // FIXME: we may to cap the number of hard refresh for all the instances of a same user..
@@ -427,10 +423,10 @@ module ViewMake {
             match (ClientReference.get(viewlib_content)) {
             case {folder:_ ...}:
                 ServerLib.refresh_content(true);
-                Log.info("refresh_loop", "soft");
+                Log.info("refresh_loop", "hard");
             default: void
             }
-            ignore(Client.setTimeout(loop, t));         
+            ignore(Client.setTimeout(loop, t));
         }
         ignore(Client.setTimeout(loop, t));
     }
