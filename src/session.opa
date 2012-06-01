@@ -5,7 +5,7 @@ import stdlib.core.rpc.core
 type DropboxSession.status = 
    {disconnected}
 or {OAuth.token pending_request}
-or {Dropbox.credentials credentials, int uid, string current_path, bool refreshing} //authenticated
+or {Dropbox.credentials credentials, int uid, string current_path, bool refreshing, option(ViewActor.chan) view_actor} //authenticated
 
 // FIXME: memory leak (we never clean the cookie table) 
 protected UserContext.t(DropboxSession.status) context = UserContext.make({disconnected})
@@ -84,7 +84,7 @@ module DropboxSession {
         match (D.Account.info(credentials)) {
         case {success:info}:
             Data.update_user_info(info);
-            set({~credentials, uid:info.uid, current_path:Data.root_path, refreshing:true});
+            set({~credentials, uid:info.uid, current_path:Data.root_path, refreshing:true, view_actor:none});
             Scheduler.push(function(){ignore(refresh_user_entries(function(){void}, false))});
             {success}
         default: // BUG of the API client: we don't fail on error codes != 200
@@ -105,9 +105,7 @@ module DropboxSession {
                 Log.info("process_delta_entries", "processed {counter} entries in total");
                 
                 daemon = SizeDaemons.get_mine(uid);
-                Session.send(daemon, { ready : function(){Scheduler.push(callback)} });
-//callback meant to schedule to turn the flag off when the lock is released
-//N.B. we "protect" the thread of the daemon from unexpected I/O errors by "forking" the (async) callback first
+                Session.send(daemon, { ready : callback });
                 {success}
             }
         default: mkerror("Error while retrieving the deltas on files");
@@ -116,12 +114,12 @@ module DropboxSession {
     
     function refresh_user_entries(refresh_view, bool background_task) {
         match (get()) {
-        case {~credentials, ~uid, ~current_path, refreshing:_}:
+        case {~credentials, ~uid, ~current_path, refreshing:_, ~view_actor}:
             function callback() {
-                set({~credentials, ~uid, ~current_path, refreshing:false});
+                set({~credentials, ~uid, ~current_path, refreshing:false, ~view_actor});
                 refresh_view()
             }
-            set({~credentials, ~uid, ~current_path, refreshing:true});
+            set({~credentials, ~uid, ~current_path, refreshing:true, ~view_actor});
             if (background_task == false) refresh_view();
             process_delta_entries(uid, credentials, 0, callback)
         default: mkerror("User not authenticated");

@@ -433,6 +433,7 @@ module ViewMake {
     function page_html(ViewLib.login login, ViewLib.content content, option(ViewLib.folder_info) current_folder_data) {
     <div class="navbar navbar-fixed-top" id="view" onready={function(_){
         ViewLib.initial_setup(login, content, current_folder_data);
+        ViewActor.register();
         make_hard_refresh_loop(60000);
     }}>
       <div class="navbar-inner">
@@ -453,5 +454,33 @@ module ViewMake {
             {footer_html(content)}
       </footer>
     </div>
+    }
+}
+
+/* quick actor interface for the asynchronous function(s) set_* above to work around a limitation of UserContext & SizeDaemons */
+
+type ViewActor.msg = { ViewLib.content set_content } // possibly every set_*
+
+type ViewActor.chan = Session.channel(ViewActor.msg)
+
+client viewactor_me = ViewActor.make()
+
+module ViewActor {
+
+    client function make() {
+        function on_msg(void, { set_content: content }) {
+            ViewLib.set_content(content);
+            {unchanged}
+        }
+     
+        Session.make(void, on_msg);
+    }
+
+    function set_content(ViewActor.chan chan, content) {
+        Session.send(chan, {set_content:content})
+    }
+
+    function register() {
+        ServerLib.register_actor(viewactor_me);
     }
 }
