@@ -31,16 +31,30 @@ clean::
 DBPATH=$(HOME)/var/mongodb
 BINPATH=$(HOME)/bin
 
+mongo-flush::
+	mongo entries --quiet --eval "db.all.remove({})"
+	mongo users --quiet --eval "db.all.remove({})"
+
+mongo-init::
+	mongo entries --quiet --eval 'db.all.ensureIndex({ "uid":1, "parent.some":1 });'
+	mongo entries --quiet --eval 'db.all.ensureIndex({ "uid":1, "parent":1 });'
+#TODO: figure out which one is useful
+
+mongo-stats::
+	mongo users --quiet --eval "db.all.find().count()"
+	mongo entries --quiet --eval "db.all.find().count()"
+
 run:: statbox
-	killall mongod || true
 	killall statbox || true
 	mkdir -p $(DBPATH)
-	$(BINPATH)/mongod --dbpath $(DBPATH) &
+	killall -s CONT mongod || ($(BINPATH)/mongod --dbpath $(DBPATH) && make mongo-init) &
+	make mongo-stats
 	authbind ./statbox -p 80
 
 clean-all:: clean
-	@echo "Press enter to reset the database in $(DBPATH)" && read i && [ "xx$$i" = "xx" ]
-	rm -rf $(DBPATH)/* access.log error.log
+	@echo "Press enter to reset tables 'users' and 'entries' of MongoDB" && read i && [ "xx$$i" = "xx" ]
+	make mongo-flush mongo-init
+	rm -rf access.log error.log
 
 deploy::
 	git push -f origin master:deploy && \
