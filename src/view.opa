@@ -14,7 +14,7 @@ type ViewLib.path = string // current folder path-key (lowercase, begins with "/
 
 type ViewLib.user_info = Dropbox.quota_info
 
-type ViewLib.content = { welcome } or { error } or { ViewLib.path folder, ViewLib.user_info user_info }
+type ViewLib.content = { welcome } or { error } or { ViewLib.path folder, ViewLib.user_info user_info } or { refreshing }
 
 type ViewLib.data = map(ViewLib.path, ViewLib.folder_info)
 
@@ -61,6 +61,7 @@ module ViewLib {
                 ((path1 == path2), (info1 == info2))
             case ({welcome}, {welcome}): (true, true)
             case ({error}, {error}): (true, true)
+            case ({refreshing}, {refreshing}): (true, true)
             default: (false, false)
                 // N.B. we don't make precise all the cases for the footer
             }
@@ -148,6 +149,9 @@ module ViewLib {
 
         case {error}:
             #content = ViewMake.error_html()
+
+        case {refreshing}:
+            #content = ViewMake.refresh_html()
 
         }
     }
@@ -369,6 +373,34 @@ module ViewMake {
       </div>
     }
 
+    function make_soft_refresh_loop(t) {
+        recursive function loop() {
+            if (ClientReference.get(viewlib_content) == {refreshing}) {
+                ServerLib.push_content();
+                ignore(Client.setTimeout(loop, t));
+            }
+        }
+        loop();
+    }
+
+    function make_hard_refresh_loop(t) {
+        recursive function loop() {
+            match (ClientReference.get(viewlib_content)) {
+            case {folder:_ ...}: ServerLib.refresh_content();
+            default: void
+            }
+            ignore(Client.setTimeout(loop, t));         
+        }
+        ignore(Client.setTimeout(loop, t));
+    }
+
+    function refresh_html() {
+            <div class="hero-unit" onready={function(_){make_soft_refresh_loop(1000)}}>
+        <h2>Thanks for using {application_name}</h2>
+        <h3>Your file information are being processed, and statistics will be available soon.</h3>
+        </div>
+    }
+
     function contentframe_html(ViewLib.content content, option(ViewLib.folder_info) current_folder_data) {
         match(content) {
         case {folder: path, ...}:
@@ -384,6 +416,8 @@ module ViewMake {
         case {error}:
             ViewMake.error_html()
 
+        case {refreshing}:
+            ViewMake.refresh_html();
         }
     }
 
@@ -392,6 +426,7 @@ module ViewMake {
     function page_html(ViewLib.login login, ViewLib.content content, option(ViewLib.folder_info) current_folder_data) {
     <div class="navbar navbar-fixed-top" id="view" onready={function(_){
         ViewLib.initial_setup(login, content, current_folder_data);
+        make_hard_refresh_loop(60000);
     }}>
       <div class="navbar-inner">
         <div class="container">

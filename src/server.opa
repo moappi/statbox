@@ -45,13 +45,14 @@ module ServerLib {
 
     function read_content() {
         match (DropboxSession.get()) {
-        case {~current_path, ~uid, ~credentials}:
+        case {~current_path, ~uid, ~credentials, refreshing:{false}}:
             if (Data.is_valid(current_path, uid)) {
                 {folder: current_path, user_info:Data.get_user_info(uid).quota_info}
             } else {
-                DropboxSession.set({current_path:Data.root_path, ~uid, ~credentials});
+                DropboxSession.set({current_path:Data.root_path, ~uid, ~credentials, refreshing:{false}});
                 {folder: Data.root_path, user_info:Data.get_user_info(uid).quota_info};
             }
+        case {refreshing:{true} ...}: {refreshing}
         case {pending_request:_}: {error}
         case {disconnected}: {welcome}
         }
@@ -62,12 +63,16 @@ module ServerLib {
     }
 
     @async exposed function refresh_content(){
-        match (DropboxSession.refresh_user_entries()) {
-        case {success}:
+        function callback() {
             ViewLib.flush_data();
             push_content()
-        default: Log.error("ServerLib.refresh_content", "failed")
         }
+
+        match (DropboxSession.refresh_user_entries(callback)) {
+            case {success}: void
+            case {~error}: Log.error("ServerLib.refresh_content", "failed : {error}")
+        }
+        
     }
 
     function read_data(path) {
@@ -98,9 +103,9 @@ module ServerLib {
 
     @async exposed function move_to_path(string path) {
         match (DropboxSession.get()) {
-        case {~uid, ~credentials, current_path:_}: {
+        case {~uid, ~credentials, current_path:_, refreshing:{false}}: {
             if (Data.is_valid(path, uid)) {
-                DropboxSession.set({~uid, ~credentials, current_path: path});
+                DropboxSession.set({~uid, ~credentials, current_path: path, refreshing:{false}});
                 match(read_data(path)) {
                 case {some:data}: ViewLib.set_data(path, data)
                 case {none}: void

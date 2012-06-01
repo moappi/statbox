@@ -5,7 +5,7 @@ import stdlib.core.rpc.core
 type DropboxSession.status = 
    {disconnected}
 or {OAuth.token pending_request}
-or {Dropbox.credentials credentials, int uid, string current_path} //authenticated
+or {Dropbox.credentials credentials, int uid, string current_path, bool refreshing} //authenticated
 
 // FIXME: memory leak (we never clean the cookie table) 
 protected UserContext.t(DropboxSession.status) context = UserContext.make({disconnected})
@@ -84,33 +84,44 @@ module DropboxSession {
         match (D.Account.info(credentials)) {
         case {success:info}:
             Data.update_user_info(info);
-            set({~credentials, uid:info.uid, current_path:Data.root_path});
-            process_delta_entries(info.uid, credentials, 0)
+            set({~credentials, uid:info.uid, current_path:Data.root_path, refreshing:true});
+            Scheduler.push(function(){ignore(refresh_user_entries(function(){void}))});
+            {success}
         default: // BUG of the API client: we don't fail on error codes != 200
             set({disconnected});
             mkerror("Error while retrieving the account information");
         }
     }
 
-    private function process_delta_entries(int uid, Dropbox.credentials credentials, int counter) {
+    private function process_delta_entries(int uid, Dropbox.credentials credentials, int counter, (-> void) callback) {
         match (D.Files.delta(Data.get_user_delta_options(uid), credentials)) {
         case {success:delta}:
             Data.update_user_entries(uid, delta);
             Data.set_user_delta_options(uid, delta.cursor);
             counter = counter + List.length(delta.entries);
             if (delta.has_more) {
-                process_delta_entries(uid, credentials, counter)
+                process_delta_entries(uid, credentials, counter, callback)
             } else {
                 Log.info("process_delta_entries", "processed {counter} entries in total");
+                
+                daemon = SizeDaemons.get_mine(uid);
+                Session.send(daemon, { ready : callback });
+                    //callback meant to schedule to turn the flag off when the lock is released
                 {success}
             }
         default: mkerror("Error while retrieving the deltas on files");
         }
     }
     
-    function refresh_user_entries() {
+    function refresh_user_entries(fcallback) {
         match (get()) {
-        case {~credentials, ~uid, current_path:_}: process_delta_entries(uid, credentials, 0)
+        case {~credentials, ~uid, ~current_path, refreshing:_}:
+            function callback() {
+                set({~credentials, ~uid, ~current_path, refreshing:false});
+                fcallback()
+            }
+            set({~credentials, ~uid, ~current_path, refreshing:true});
+            process_delta_entries(uid, credentials, 0, callback)
         default: mkerror("User not authenticated");
         }
     }

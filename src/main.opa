@@ -24,7 +24,8 @@ function admin_page() {
 
 function process_dropbox_token(string raw_token, string url) {
     _ = DropboxSession.get_access(raw_token);
-    Resource.default_redirection_page(url)
+    Resource.default_redirection_page(url);
+    // N.B. The default page will display the error message if necessary
 }
 
 dispatcher = parser {
