@@ -71,7 +71,7 @@ module ServerLib {
         match (DropboxSession.get_by_cookie(cookie)) {
         case {view_actor:{some:view_actor}, ~uid...}:
             Log.info("Server.send_content", "reaching user {uid} through actor");
-            ViewActor.set_content(view_actor, read_content_by_cookie(cookie));
+            ViewActor.set_content_and_flush_data(view_actor, read_content_by_cookie(cookie));
         case {view_actor:{none}, ~uid...}:
             Log.error("Server.send_content", "user {uid} not registered yet");
             Scheduler.sleep(3000, function(){send_content(cookie)}); //FIXME: increasing time and/or bounded number of attempts

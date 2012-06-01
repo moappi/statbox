@@ -471,6 +471,7 @@ module ViewActor {
 
     client function make() {
         function on_msg(void _v, { set_content: content }) {
+            ViewLib.flush_data();
             ViewLib.set_content(content);
             {unchanged}
         }
@@ -478,7 +479,7 @@ module ViewActor {
         Session.make(void, on_msg);
     }
 
-    function set_content(ViewActor.chan chan, content) {
+    function set_content_and_flush_data(ViewActor.chan chan, content) {
         Session.send(chan, {set_content:content})
     }
 }

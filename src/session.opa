@@ -115,6 +115,7 @@ module DropboxSession {
         case {success:info}:
             Data.update_user_info(info);
             set({~credentials, uid:info.uid, current_path:Data.root_path, refreshing:true, view_actor:get_view_actor()});
+            // forking a background process:
             Scheduler.push(function(){ignore(refresh_user_entries(function(){void}, false))});
             {success}
         default: // BUG of the API client: we don't fail on error codes != 200
@@ -147,6 +148,7 @@ module DropboxSession {
         case {~credentials, ~uid, ~current_path, refreshing:_, ~view_actor}:
             cookie = HttpRequest.get_cookie()
             function callback() {
+                Scheduler.wait(2000); // give some more time to MongoDB for processing the DB writes //FIXME: rigourous solution
                 set_refresh_by_cookie(cookie, false);
                 refresh_view()
             }
