@@ -105,8 +105,9 @@ module DropboxSession {
                 Log.info("process_delta_entries", "processed {counter} entries in total");
                 
                 daemon = SizeDaemons.get_mine(uid);
-                Session.send(daemon, { ready : callback });
-                    //callback meant to schedule to turn the flag off when the lock is released
+                Session.send(daemon, { ready : function(){Scheduler.push(callback)} });
+//callback meant to schedule to turn the flag off when the lock is released
+//N.B. we must "protect" the thread of the daemon from unexpected I/O errors by "forking" the (async) callback first
                 {success}
             }
         default: mkerror("Error while retrieving the deltas on files");
