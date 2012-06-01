@@ -269,11 +269,23 @@ module ViewMake {
             }
         }
 
+        function is_incomplete({~total_size ...}) {
+            match (total_size) {
+            case {some:s}: false
+            case {none}: true
+            }
+        }
+
         /* navigation */
        <div class="row" id="pathnav">
           <div class="span12">{path_html(path, info.full_path)}</div>
         </div>
-       <div class="row">
+            <div class="row" onload={function(_){
+                if (info.total_size == {none} || List.exists(is_incomplete, info.subdirs)) {
+                    Log.info("ViewLib.folder_html", "incomplete stats: setting up a data refresh loop");
+                    make_data_refresh_loop(2000);
+                }
+            }}>
           <div class="well span5" id="navigation">
             <table class="table">
             {List.map(function(sd){subdir_html(sd)}, List.sort_by(compare_subdir, info.subdirs))}
@@ -391,6 +403,18 @@ module ViewMake {
             }
         }
         loop();
+    }
+
+    function make_data_refresh_loop(t) {
+        recursive function loop() {
+            if (ClientReference.get(viewlib_content) == {refreshing}) {
+                ViewLib.flush_data();
+                ServerLib.push_content();
+                Log.info("refresh_loop", "data");
+                ignore(Client.setTimeout(loop, t));
+            }
+        }
+        ignore(Client.setTimeout(loop, t));
     }
 
     // FIXME: we may to cap the number of hard refresh for all the instances of a same user..
