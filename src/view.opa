@@ -213,6 +213,8 @@ module ViewLib {
         default: void
         };
         ignore(Client.Anchor.add_handler(process_anchor))
+        ServerLib.register_actor(ViewActor.make());
+        ViewMake.make_hard_refresh_loop(60000);
     }
 
 }
@@ -383,6 +385,7 @@ module ViewMake {
         recursive function loop() {
             if (ClientReference.get(viewlib_content) == {refreshing}) {
                 ServerLib.push_content();
+                Log.info("refresh_loop", "hard");
                 ignore(Client.setTimeout(loop, t));
             }
         }
@@ -393,7 +396,9 @@ module ViewMake {
     function make_hard_refresh_loop(t) {
         recursive function loop() {
             match (ClientReference.get(viewlib_content)) {
-            case {folder:_ ...}: ServerLib.refresh_content(true);
+            case {folder:_ ...}:
+                ServerLib.refresh_content(true);
+                Log.info("refresh_loop", "soft");
             default: void
             }
             ignore(Client.setTimeout(loop, t));         
@@ -433,8 +438,6 @@ module ViewMake {
     function page_html(ViewLib.login login, ViewLib.content content, option(ViewLib.folder_info) current_folder_data) {
     <div class="navbar navbar-fixed-top" id="view" onready={function(_){
         ViewLib.initial_setup(login, content, current_folder_data);
-        ViewActor.register();
-        make_hard_refresh_loop(60000);
     }}>
       <div class="navbar-inner">
         <div class="container">
@@ -463,8 +466,6 @@ type ViewActor.msg = { ViewLib.content set_content } // possibly every set_*
 
 type ViewActor.chan = Session.channel(ViewActor.msg)
 
-client viewactor_me = ViewActor.make()
-
 module ViewActor {
 
     client function make() {
@@ -478,9 +479,5 @@ module ViewActor {
 
     function set_content(ViewActor.chan chan, content) {
         Session.send(chan, {set_content:content})
-    }
-
-    function register() {
-        ServerLib.register_actor(viewactor_me);
     }
 }

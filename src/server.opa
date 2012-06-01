@@ -130,14 +130,9 @@ module ServerLib {
 
     @async exposed function register_actor(ViewActor.chan view_actor){
         match (DropboxSession.get()) {
-        case {~uid, ~credentials, ~current_path, ~refreshing, view_actor:{none}}:
+        case {~uid, ~credentials, ~current_path, ~refreshing, view_actor:_}:
+            Log.info("ServerLib.register_actor", "registering view actor for user {uid} @ {HttpRequest.get_cookie()}");
             DropboxSession.set({~uid, ~credentials, ~current_path, ~refreshing, view_actor:some(view_actor)})
-        case {view_actor:{some:view_actor0} ...}:
-            if (view_actor != view_actor0) {
-                Log.error("ViewActor.register", "Trying to overide a different existing view_actor (this sounds bad)");
-            } else {
-                Log.info("ViewActor.register", "view_actor already registered");
-            }
         default: void
         }
     }
