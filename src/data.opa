@@ -227,7 +227,7 @@ function fold_user_entries(int uid, init, f) {
     DbSet.fold(init, entries)(f)
 }
 
-function count_folder_entries(int uid, string folder) { // FIXME slow
+function count_folder_entries(int uid, string folder) {
     dbset(Data.entry, _) entries = /entries/all[uid == uid and parent == {some:folder}];
     Iter.count(
         DbSet.iterator(entries)

@@ -247,7 +247,7 @@ module ViewMake {
         }
     }
 
-    current_path = "(files in current dir.)"
+    current_path = "[files in current dir.]"
 
     function folder_html(string path, ViewLib.folder_info info) {
 
