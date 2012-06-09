@@ -1,3 +1,18 @@
+/*
+    Copyright © 2012 Mathieu Baudet
+
+    This file is part of StatBox.
+
+    StatBox is free software: you can redistribute it and/or modify it under the
+    terms of the GNU General Public License, version 3, as published by
+    the Free Software Foundation.
+
+    StatBox is distributed in the hope that it will be useful, but WITHOUT ANY
+    WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+    FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+    more details <http://www.gnu.org/licenses/>.
+*/
+
 
 type Pool.msg('a) = { (string, (option('a) -> option('a))) replace }
 //TODO: add set and get for more efficiency
