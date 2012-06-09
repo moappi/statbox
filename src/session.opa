@@ -160,7 +160,7 @@ module DropboxSession {
     
     function refresh_user_entries(refresh_view, bool background_task) {
         match (get()) {
-        case {~credentials, ~uid, ~current_path, refreshing:_, ~view_actor}:
+        case {~credentials, ~uid, current_path:_, refreshing:_, view_actor:_}:
             cookie = HttpRequest.get_cookie()
             function callback() {
                 Scheduler.wait(2000); // give some more time to MongoDB for processing the DB writes //FIXME: rigourous solution

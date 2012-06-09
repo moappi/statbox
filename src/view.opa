@@ -148,7 +148,7 @@ module ViewLib {
 
         function is_incomplete({~total_size ...}) {
             match (total_size) {
-            case {some:s}: false
+            case {some:_}: false
             case {none}: true
             }
         }
