@@ -2,7 +2,7 @@
 
 SRCDIR=src
 SOURCES=$(addprefix $(SRCDIR)/,pool.opa data.opa config.opa session.opa server.opa main.opa view.opa)
-RESOURCES=resources/*
+RESOURCES=$(wildcard resources/*)
 
 LIBDIR=src/stdlib
 LIBS=custom.stdlib.apis.common.opx custom.stdlib.apis.oauth.opx custom.stdlib.apis.dropbox.opx
@@ -31,6 +31,19 @@ clean::
 DBPATH=$(HOME)/var/mongodb
 BINPATH=$(HOME)/bin
 MONGO=$(BINPATH)/mongo
+
+# we assume that directory data/ contains the following files:
+# - host.txt  (example of content: foo.com)
+# - key.txt   (dropbox API key)
+# - secret.txt  (dropbox API secret)
+# - unix-user.txt   (example of content: mathieu234)
+# - dropbox-user.txt  (example of content: 1234567)
+#
+# /!\ no trailing CR allowed
+#
+USER=$(shell cat data/unix-user.txt)
+HOST=$(shell cat data/host.txt)
+MY_DROPBOX_ID=$(shell cat data/dropbox-user.txt)
 
 mongo-flush::
 	$(MONGO) entries --quiet --eval "db.all.remove({})"
