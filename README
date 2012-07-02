@@ -2,9 +2,35 @@
 About Statbox
 =============
 
+Statbox is a web application that connects to the API of Dropbox and displays useful statistics on users' Dropbox directories.
+
+Here is a screenshot:
+  https://github.com/MathieuBt/statbox/blob/master/resources/screenshot5.png
+
+How to compile & deploy
+-----------------------
+
+I used Opa 0.9 build 1845 to compile the current version of statbox under MAC and Linux.
+
+Everything should compile with 'make clean && make'. The generated binary can be run with './statbox -p 8080' provided the database engine 'mongod' already runs in background on the standard port.
+
+By default, the binary assumes that the following files are present:
+- './data/host.txt', containing the public name of the host (example: 'foo.com'),
+- './data/key.txt', containing the API key,
+- './data/secret.txt' containing the API secret.
+
+(Although it is generally not a good idea for security) these parameters may also be provided on the command line (see './statbox --help').
+
+You may obtain a pair of API key and secret by visiting this page: 
+   https://www.dropbox.com/developers/apps
+
+See the definition of 'make run' in the Makefile for a script using 'authbind' to access port 80.
+
+Use 'make mongo-init' anytime on the server to build the necessary index trees.
+
 Features
 --------
-* The service connects to Dropbox and retrieves the metadata of a user's files and folders.
+* The service connects to REST API of Dropbox and retrieves the meta-data of a user's files and folders.
 
 * These information are stored in the server DB (MongoDB) to be processed and made available to the user interface.
 
@@ -14,48 +40,42 @@ Features
 
 * The web client always holds a copy of all the information he needs to construct the display (the "View"). A user may request to refresh the client's cache at will, this will trigger a new call to the REST API to check for new delta information from Dropbox, and update the View.
 
-* Besides the main view, the display includes a loginbox, welcome and error screens with the correct workflow.
+* Besides the main view, the display includes a log-in box, welcome and error screens with the correct work-flow.
 
 * Navigation is fully "AJAX" but reloading the page does not destroy navigation (we use a server-side cookie-indexed session map in memory).
 
-* Styles and layout are based on twitter bootstrap API.
 
-* The service is entirely coded in Opa, a new (somewhat experimental) strongly-typed, functional, web programming language.
+Credits
+-------
+Styles and layout are based on Twitter Bootstrap.
+
+The service is entirely coded in Opa, a new, strongly-typed, functional, web programming language (http://opalang.org).
+
 
 Current limitations
 -------------------
-* Request to MongoDB are not optimized (at the very least we should add the proper indexes == N.B. this can also be done manually outside the code).
 
-* Security has not extensively checked. A the very least, small memory leaks are to be expected because of the creation of "size-daemons" in ram. The Dropbox API has obviously the power to block a user. (Note that here protection against filesystem-based XSS attacks should be brought for free by Opa.)
+* The application is still a prototype: security has not been extensively checked. *** USE AT YOUR OWN RISK. *** Small memory leaks are to be expected because of the creation of "size-daemons" in RAM. The Dropbox API server has obviously the power to deny service to a user. Note however that here protection against file-system-based XSS attacks should be brought for free by the Opa language.
 
-* Atomicity of multiple DB requests is been not rigorously enforced. This might cause thread-safety issues when a same user connects from several browser is probably not enforced (although the same 'cursor' value of the API will be used, we may have concurrent REST requests with different authentication token). However, the job for computing sizes uses a lock for every user (the lock mechanisms are buried in the "actors" of Opa, actually called "Session").
+* Atomicity of multiple DB requests is not rigorously enforced. This might cause thread-safety issues when a same user connects from several browser (although the same 'cursor' value of the API will be used, we may have concurrent REST requests with different authentication token). However, the job for computing sizes uses a lock for every user (the lock mechanisms are buried in the "actors" of Opa, actually called "Session").
 
-* At the moment, the Opa binding for Dropbox consistently ignores all HTTP error codes. This could be a problem to detect expiration of long term credentials and gracefully ask for new ones. The REST client will not deal with rate limitation either, for the same reason.
+* At the moment, the Opa binding for Dropbox consistently ignores all HTTP error codes. [N.B. This seems to have been fixed in Opa since the app was written but one now needs to merge the codes.] This could be a problem to detect expiration of long term credentials and gracefully ask for new ones. The REST client will not deal with rate limitation either, for the same reason.
 
-* Client/Server network communication is probably not very optimized. However, the source code theoretically only use asynchronous communication.
+* Client/Server network communication is probably not very optimized. However, the source code theoretically only trigger asynchronous communications between server and clients.
 
 * The job for updating the computed sizes uses a "TODO set" and a top-down search that only refreshes outdated information for reachable nodes. However, more clever strategies could be imagined in some cases: for instance propagating the differences between the old size and the new size of an object.
 
 * We need more charts :-) Like one by type of file (~ icon).
 
-How to compile & deploy
-=======================
-
-I currently use Opa 0.9 build 1845 to compile on MAC and Linux.
-
-Use 'make clean && make'. The generated binary can be run with './statbox -p 8080' provided 'mongod' already runs in background on the standard port.
-
-The section 'make run' of the Makefile uses calls to 'authbind' to access port 80.
 
 About the Source code
 =====================
 
-* config.opa : application-wide constants and authentication secrets
-(Mathieu: DO NOT push on github)
+* config.opa : configure application-wide constants and authentication secrets
 
 * main.opa : URL dispatcher, redirection page, (hidden) admin page
 
-* data.opa : types, DB declaration, and utility functions for the server-side data. Includes Daemons for computing analystics in background.
+* data.opa : types, DB declaration, and utility functions for the server-side data. Includes Daemons for computing analytics in background.
 
 * server.opa : AJAX API showed to the web client. Mostly connects data.opa and view.opa
 
@@ -63,10 +83,11 @@ About the Source code
 
 * view.opa : types and values for the client-side data, all the corresponding rendering functions.
 
-The following files have been imported from the Opa standard library to make it easier to review (and possibly patch) them.
+The following files had been imported from the Opa standard library to make it easier to review (and possibly patch) them. The first one should now be merged with the trunk of Opa and all of them should be removed from this repository.
 
 * stdlib/dropbox.opa : Opa's standard REST binding on the top of Dropbox. Includes types for typical objects exchanged with the API.
 
 * stdlib/oauth.opa : Opa's standard binding on the top of the OAuth protocol
 
 * stdlib/api_libs.opa : useful functions for REST bindings
+
